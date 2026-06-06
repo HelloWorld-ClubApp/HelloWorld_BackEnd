@@ -1,0 +1,1 @@
+# 공통 의존성 주입 (get_db, get_current_user 등)

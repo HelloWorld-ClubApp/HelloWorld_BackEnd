@@ -1,0 +1,1 @@
+# 환경변수 (DB URL, JWT Secret 등)
