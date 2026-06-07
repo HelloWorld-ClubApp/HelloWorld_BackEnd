@@ -3,7 +3,7 @@
 # app/models/user.py
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, ForeignKey, SmallInteger, Char, DateTime
+from sqlalchemy import String, ForeignKey, SmallInteger, CHAR, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -62,7 +62,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255)) # 해싱된 비밀번호
     email: Mapped[str] = mapped_column(String(100), unique=True, index=True) # 이메일
     name: Mapped[str] = mapped_column(String(10)) # 이름
-    status: Mapped[str] = mapped_column(Char(2), default='재학') # 학적 상태
+    status: Mapped[str] = mapped_column(CHAR(2), default='재학') # 학적 상태
     phone: Mapped[str] = mapped_column(String(13)) # 휴대폰 번호
     admission_year: Mapped[int] = mapped_column(SmallInteger) # 입학 연도
     
@@ -85,7 +85,7 @@ class EmailVerification(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
-    verification_code: Mapped[str] = mapped_column(Char(6))
+    verification_code: Mapped[str] = mapped_column(CHAR(6))
     is_verified: Mapped[bool] = mapped_column(default=False)
     
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -150,7 +150,8 @@ backend/
 │   ├── models/                 # DB 테이블 정의 (SQLAlchemy)
 │   │   ├── user.py             # Users, Role 등
 │   │   ├── post.py             # Posts, Comments, Likes 등
-│   │   ├── contest.py         # 공모전 조회 및 신청
+│   │   ├── file.py             # 파일 메타데이터 관리
+│   │   ├── contest.py          # 공모전 조회 및 신청
 │   │   ├── chat.py             # ChatRooms, Messages 등
 │   │   └── schedule.py         # Schedules 등
 │   │
