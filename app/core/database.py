@@ -1,5 +1,5 @@
 # SQLAlchemy 세션 생성 및 DB 연결 설정
-# 작성자 - 엄인섭
+# 작성자 : 엄인섭
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings

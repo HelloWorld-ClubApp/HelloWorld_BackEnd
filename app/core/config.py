@@ -1,5 +1,5 @@
 # 환경변수 (DB URL, JWT Secret 등)
-# 작성자 - 엄인섭
+# 작성자 : 엄인섭
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

@@ -1,4 +1,5 @@
-# app/models/file.py
+# 파일 상세 메타데이터 관리 모델
+# 작성자 : 엄인섭
 from datetime import datetime
 from sqlalchemy import String, BigInteger, DateTime
 from sqlalchemy.orm import Mapped, mapped_column

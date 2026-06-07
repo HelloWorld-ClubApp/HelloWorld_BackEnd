@@ -1,6 +1,5 @@
 # Users, Role 등
 # 작성자 : 엄인섭
-# app/models/user.py
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import String, ForeignKey, SmallInteger, CHAR, DateTime
