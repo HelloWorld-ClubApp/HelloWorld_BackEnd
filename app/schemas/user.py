@@ -13,9 +13,16 @@ class UserCreate(BaseModel):
 
     # Pydantic v2 방식: 비밀번호 일치 여부 검증
     @model_validator(mode='after')
-    def check_passwords_match(self) -> 'UserCreate':
+    def validate_password_rules(self) -> 'UserCreate':
+        # 1. 일치 여부 검사
         if self.password != self.password_confirm:
             raise ValueError('비밀번호가 일치하지 않습니다.')
+            
+        # 2. 정규식 검사
+        pattern = r"^(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*(),.?\":{}|<>]).+$"
+        if not re.match(pattern, self.password):
+            raise ValueError("잘못된 비밀번호 형식입니다. (소문자, 숫자, 특수문자 포함)")
+            
         return self
 
 class UserResponse(BaseModel):
