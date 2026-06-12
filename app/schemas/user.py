@@ -5,8 +5,8 @@ from pydantic import BaseModel, EmailStr, Field, model_validator
 # 회원가입 입력 형식(8~20자 제한, 이메일 정규식 등)
 class UserCreate(BaseModel):
     student_id: str = Field(..., min_length=10, max_length=15, description="학번")
-    password: str = Field(..., min_length=8, max_length=19, description="비밀번호 (8자 이상 20자 미만)")
-    password_confirm: str = Field(..., min_length=8, max_length=19, description="비밀번호 확인")
+    password: str = Field(..., min_length=8, max_length=20, description="비밀번호 (8자 이상 20자 제한)")
+    password_confirm: str = Field(..., min_length=8, max_length=20, description="비밀번호 확인")
     email: EmailStr = Field(..., description="이메일")
     name: str = Field(..., min_length=2, max_length=10, description="본명")
     admission_year: int = Field(..., description="학교 입학년도 (예: 2024)")
