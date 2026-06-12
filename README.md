@@ -7,29 +7,47 @@ FastAPI를 기반으로 구축되었으며, 확장성과 유지보수성을 고�
 
 ## 📦 기술 스택 및 라이브러리 (Tech Stack)
 
-### 1. Core Framework (핵심 프레임워크 및 서버)
-* **`fastapi`**: 우리가 사용할 핵심 앱 프레임워크
-* **`uvicorn`**: FastAPI 서버를 실행시켜 줄 초고속 비동기 서버 엔진
+### 1. Core Framework (핵심 프레임워크)
 
-### 2. Database & ORM (데이터베이스 및 데이터 조작)
-* **`sqlalchemy`**: 파이썬 코드(클래스)와 DB 테이블을 매핑하여 객체 지향적인 데이터 조작을 돕는 강력한 ORM 라이브러리
-* **`psycopg2-binary`**: SQLAlchemy가 PostgreSQL 데이터베이스와 원활하게 통신할 수 있도록 연결해 주는 핵심 데이터베이스 어댑터
-* **`alembic`**: 데이터베이스 모델(스키마)의 변경 사항을 안전하게 추적하고 관리(마이그레이션)해 주는 필수 도구
+* **`fastapi`**: 고성능 비동기 API 서버 프레임워크
+* **`uvicorn`**: FastAPI를 실행하는 비동기 ASGI 서버
 
-### 3. Security & Authentication (보안 및 회원 인증)
-* **`passlib[bcrypt]`**: 사용자 비밀번호를 데이터베이스에 평문으로 저장하지 않고, 안전하게 단방향 해시(Hash) 암호화하여 저장 및 검증
-* **`pyjwt`**: 로그인 성공 시 무상태(Stateless) 기반의 세션 유지를 위한 JWT(JSON Web Token)를 발급하고 위변조 여부를 검증
+### 2. Database & ORM (데이터베이스)
+
+* **`sqlalchemy`**: 파이썬 객체와 DB 테이블을 매핑하는 강력한 ORM
+* **`psycopg2-binary`**: PostgreSQL 데이터베이스 어댑터
+* **`alembic`**: 데이터베이스 버전 관리 및 마이그레이션 도구
+
+### 3. Security & Authentication (보안 및 인증)
+
+* **`passlib[bcrypt]`**: 안전한 비밀번호 해싱 처리
+* **`pyjwt`**: Stateless 인증을 위한 JWT(JSON Web Token) 발급 및 검증
+* **`cryptography`**: 데이터 암호화 및 보안 통신 지원
 
 ### 4. Validation & Configuration (데이터 검증 및 환경 설정)
-* **`pydantic[email]`**: 프론트엔드로부터 들어오는 요청 데이터의 타입과 유효성(예: 이메일 정규식, 글자 수 제한 등)을 서버 진입 전에 엄격하게 검증
-* **`python-dotenv`**: 외부 유출이 치명적인 보안 정보(DB 비밀번호, JWT 시크릿 키 등)를 `.env` 파일로 분리하여 프로젝트 전역의 환경 변수로 관리
 
-### 5. Storage & Media (클라우드 스토리지 및 파일 처리)
-* **`python-multipart`**: FastAPI에서 프론트엔드가 보낸 파일(이미지, 첨부파일)과 폼(Form) 데이터를 정상적으로 파싱하고 읽기 위해 반드시 필요한 필수 라이브러리
-* **`supabase`**: 파싱된 프로필 이미지 및 게시글 첨부파일 등을 안전하게 업로드하고 중앙 관리하기 위한 Supabase Storage 연동 클라이언트 (PostgreSQL DB 배포 시 필요)
+* **`pydantic` & `pydantic-settings**`: 요청 데이터의 엄격한 타입 검증 및 `.env` 환경 변수 관리
+* **`email-validator`**: 이메일 형식 유효성 검증
+* **`python-dotenv`**: 환경 변수 파일 로드
 
-### 6. Real-time & Caching (실시간 통신 및 캐싱)
-* **`redis`**: 다중 서버 환경에서도 채팅(WebSocket) 메시지가 끊기지 않도록 상태를 동기화하고, 빠른 데이터 조회를 돕는 인메모리 데이터 스토어 (1:N 채팅 시 반드시 필요)
+### 5. Cloud & Storage (클라우드 서비스)
+
+* **`supabase` (SDK)**: Supabase의 전체 생태계 연동
+* `storage3`: 파일 업로드 및 관리
+* `postgrest`: DB 데이터 API 처리
+* `realtime` / `functions`: 실시간 통신 및 서버리스 함수 실행
+
+
+* **`python-multipart`**: 폼 데이터 및 파일 업로드 파싱
+
+### 6. Real-time & Caching (실시간 및 캐싱)
+
+* **`redis`**: 다중 서버 환경의 상태 공유 및 캐싱
+* **`websockets`**: 실시간 채팅 및 양방향 통신 구현
+
+### 7. Email Utility (이메일 발송)
+
+* **`aiosmtplib`**: Gmail SMTP를 통한 비동기 이메일 발송 엔진
 
 ---
 
@@ -126,8 +144,8 @@ backend/
 ├── app/
 │   ├── main.py                 # FastAPI 애플리케이션 진입점 (설정 로드, 라우터 등록)
 │   ├── core/                   # 전역 설정 및 핵심 모듈
-│   │   ├── config.py           # 환경변수 (DB URL, JWT Secret 등)
-│   │   ├── security.py         # 비밀번호 해싱(bcrypt), JWT 토큰 발급 및 검증
+│   │   ├── config.py           # 환경변수 로드 (DB URL, JWT Secret 등)
+│   │   ├── security.py         # 비밀번호 단방향 해싱(bcrypt), JWT 토큰 발급 및 검증
 │   │   └── database.py         # SQLAlchemy 세션 생성 및 DB 연결 설정
 │   │
 │   ├── api/                    # API 엔드포인트 (컨트롤러 역할)
@@ -142,18 +160,18 @@ backend/
 │   │       └── home.py         # 홈 화면 데이터 조회 (Home_001~004)
 │   │
 │   ├── schemas/                # 데이터 유효성 검사 및 입출력 포맷 (Pydantic)
-│   │   ├── user.py             # 회원가입 입력 형식(8~20자 제한, 이메일 정규식 등)
-│   │   ├── post.py             # 게시글 작성 폼, 페이징 응답 폼
-│   │   ├── chat.py             # 메시지 전송 포맷
-│   │   └── token.py            # JWT 토큰 응답 포맷
+│   │   ├── user.py             # 사용자 관련 입력 형식(8~20자 제한, 이메일 정규식 등)
+│   │   ├── post.py             # 게시판 관련 사용자 입력 형식, 페이징 응답 폼
+│   │   ├── chat.py             # 메시지 관련 입력 형식
+│   │   └── token.py            # JWT 토큰 응답 관련 형식
 │   │
-│   ├── models/                 # DB 테이블 정의 (SQLAlchemy)
-│   │   ├── user.py             # Users, Role 등
-│   │   ├── post.py             # Posts, Comments, Likes 등
-│   │   ├── file.py             # 파일 메타데이터 관리
-│   │   ├── contest.py          # 공모전 조회 및 신청
-│   │   ├── chat.py             # ChatRooms, Messages 등
-│   │   └── schedule.py         # Schedules 등
+│   ├── models/                 # DB 테이블 스키마 정의 (SQLAlchemy)
+│   │   ├── user.py             # Users, Role 및 EmailVerification(이메일 난수 인증) 테이블
+│   │   ├── post.py             # Posts, Comments, Likes 테이블
+│   │   ├── file.py             # 업로드 파일 메타데이터 테이블
+│   │   ├── contest.py          # 공모전 조회 테이블
+│   │   ├── chat.py             # ChatRooms, Messages 테이블
+│   │   └── schedule.py         # Schedules 테이블
 │   │
 │   ├── crud/                   # DB 데이터 조작 (Create, Read, Update, Delete)
 │   │   ├── crud_user.py        # 학번/이메일 중복 검사 쿼리
@@ -171,6 +189,7 @@ backend/
 │       └── ws_manager.py       # WebSocket 연결 관리 (채팅 접속자 관리)
 │
 ├── requirements.txt            # 설치 패키지 목록
+├── TROUBLESHOOTING.md          # 개발 중 발생한 문제 해결 기록
 ├── .env                        # 환경 변수 (GitHub 등에 절대 올리면 안 됨)
 └── README.md                   # 프로젝트 설명서
 

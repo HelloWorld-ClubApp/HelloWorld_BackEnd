@@ -3,7 +3,8 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_db
-from app.schemas.user import UserCreate, UserResponse, UserLogin, Token
+from app.schemas.user import UserCreate, UserResponse, UserLogin, PasswordResetRequest, PasswordResetVerify, PasswordResetConfirm
+from app.schemas.token import Token
 from app.services import auth_service
 from app.core import security
 
@@ -42,3 +43,16 @@ def login(login_in: UserLogin, db: Session = Depends(get_db)): # OAuth2 폼 대�
         "access_token": access_token,
         "token_type": "bearer"
     }
+
+
+@router.post("/password-reset/request")
+async def request_reset(req: PasswordResetRequest, db: Session = Depends(get_db)):
+    return await auth_service.request_password_reset(db, req.email)
+
+@router.post("/password-reset/verify")
+def verify_reset(req: PasswordResetVerify, db: Session = Depends(get_db)):
+    return auth_service.verify_code(db, req.email, req.code)
+
+@router.post("/password-reset/confirm")
+def confirm_reset(req: PasswordResetConfirm, db: Session = Depends(get_db)):
+    return auth_service.reset_password(db, req.email, req.new_password)

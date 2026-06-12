@@ -1,4 +1,5 @@
 # 작성자 : 엄인섭
+import re
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
 # 회원가입 입력 형식(8~20자 제한, 이메일 정규식 등)
@@ -35,6 +36,32 @@ class UserLogin(BaseModel):
     student_id: str = Field(..., description="로그인할 학번")
     password: str = Field(..., description="비밀번호")
 
-class Token(BaseModel):
-    access_token: str = Field(..., description="JWT 엑세스 토큰")
-    token_type: str = Field("bearer", description="토큰 타입")
+
+# ==========================================
+# 3. 비밀번호 찾기 (이메일 인증) 스키마
+# ==========================================
+class PasswordResetRequest(BaseModel):
+    email: EmailStr = Field(..., description="가입 시 등록한 이메일")
+
+class PasswordResetVerify(BaseModel):
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6, description="6자리 인증번호")
+
+class PasswordResetConfirm(BaseModel):
+    email: EmailStr
+    code: str = Field(..., description="인증 완료된 코드")
+    new_password: str = Field(..., min_length=8, max_length=19, description="새 비밀번호")
+    new_password_confirm: str = Field(..., min_length=8, max_length=19, description="새 비밀번호 확인")
+
+    @model_validator(mode='after')
+    def validate_password_rules(self) -> 'PasswordResetConfirm':
+        # 1. 비밀번호 일치 확인
+        if self.new_password != self.new_password_confirm:
+            raise ValueError("비밀번호가 일치하지 않습니다.")
+        
+        # 2. 정규식 규칙: 소문자, 숫자, 특수문자 포함
+        pattern = r"^(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*(),.?\":{}|<>]).+$"
+        if not re.match(pattern, self.new_password):
+            raise ValueError("잘못된 비밀번호 형식입니다.")
+            
+        return self
