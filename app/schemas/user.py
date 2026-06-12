@@ -18,7 +18,7 @@ class UserCreate(BaseModel):
         if self.password != self.password_confirm:
             raise ValueError('비밀번호가 일치하지 않습니다.')
             
-        # 2. 정규식 검사
+        # 2. 정규식 검사: 소문자, 숫자, 특수문자 포함 여부
         pattern = r"^(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*(),.?\":{}|<>]).+$"
         if not re.match(pattern, self.password):
             raise ValueError("잘못된 비밀번호 형식입니다. (소문자, 숫자, 특수문자 포함)")
