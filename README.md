@@ -176,7 +176,8 @@ backend/
 │   ├── crud/                   # DB 데이터 조작 (Create, Read, Update, Delete)
 │   │   ├── crud_user.py        # 학번/이메일 중복 검사 쿼리
 │   │   ├── crud_post.py        # 게시글 조회, 페이징 로직
-│   │   └── crud_chat.py        # 채팅 내역 저장 쿼리
+│   │   ├── crud_chat.py        # 채팅 내역 저장 쿼리
+│   │   └── crud_schedule.py    # 캘린더 일정 관리 조회 쿼리
 │   │
 │   ├── services/               # 핵심 비즈니스 로직 (컨트롤러와 DB 사이의 두뇌)
 │   │   ├── auth_service.py     # 이메일 난수 생성 로직, 인증 시간(10분) 만료 검사

@@ -18,7 +18,7 @@ from app.models.schedule import Schedule, Idea
 # ==========================================
 # 라우터(API) 임포트
 # ==========================================
-from app.api.v1 import auth
+from app.api.v1 import auth, home, schedules, posts
 
 def init_seed_data():
     """서버 시작 시 필수 기초 데이터(Seed Data)를 DB에 넣는 함수"""
@@ -67,3 +67,6 @@ app = FastAPI(lifespan=lifespan)
 # 라우터 등록 (반드시 app 생성 이후에 위치해야 함!)
 # ==========================================
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(home.router, prefix="/api/v1/home", tags=["Home"])
+app.include_router(schedules.router, prefix="/api/v1/schedules", tags=["Schedules"])
+app.include_router(posts.router, prefix="/api/v1/posts", tags=["Posts"])
