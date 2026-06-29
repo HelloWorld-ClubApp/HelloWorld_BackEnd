@@ -1,9 +1,13 @@
 # 작성자 : 엄인섭 (2026-06-12)
 # 학번/이메일 중복 검사 쿼리
+import datetime
 from sqlalchemy.orm import Session
-from app.models.user import User
+from app.models.user import User, Role
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash # 보안 모듈에서 해시 함수를 가져옴
+from app.models.file import File
+from sqlalchemy import case
+
 
 def get_user_by_student_id(db: Session, student_id: str):
     """학번으로 유저 조회 (중복 검사용)"""
@@ -31,3 +35,60 @@ def create_user(db: Session, user_in: UserCreate, default_role_id: int = 1):
     db.commit()
     db.refresh(db_user)
     return db_user
+
+
+
+
+def get_club_members_grouped(db: Session, see_all: bool = False):
+    current_year = datetime.date.today().year
+
+    # 1. 조인 쿼리 준비
+    query = (
+        db.query(User.id, User.name, Role.role_name, User.admission_year, File.file_url)
+        .join(Role, User.role_id == Role.id)
+        .outerjoin(File, User.file_id == File.id)
+    )
+
+    # 2. 메인 페이지(see_all=False)일 경우 올해(1학년), 작년(2학년) 입학생만 필터링
+    if not see_all:
+        query = query.filter(User.admission_year.in_([current_year, current_year - 1]))
+
+    # 3. 그룹 내 정렬 조건: 임원진 우선 -> 이름 가나다순
+    role_priority = case(
+        (Role.role_name == '회장', 1),
+        (Role.role_name == '부회장', 2),
+        (Role.role_name == '총무', 3),
+        else_=4
+    )
+
+    members_query = query.order_by(
+        User.admission_year.asc(),  # 고학년(입학년도가 빠른 사람)부터
+        role_priority.asc(),        # 임원진 우선
+        User.name.asc()             # 이름 가나다순
+    ).all()
+
+    # 4. 프론트엔드를 위해 학년별로 데이터 그룹화 (Dict 활용)
+    grouped_data = {}
+    for row in members_query:
+        year = row.admission_year
+        grade = current_year - year + 1 # 학년 계산
+        
+        if year not in grouped_data:
+            grouped_data[year] = {
+                "grade": grade,
+                "admission_year": year,
+                "members": []
+            }
+            
+        grouped_data[year]["members"].append({
+            "id": row.id,
+            "name": row.name,
+            "role_name": row.role_name,
+            "profile_image_url": row.file_url
+        })
+
+    # 5. UI 순서에 맞게 고학년(2학년)이 먼저 나오도록 리스트 정렬
+    result = list(grouped_data.values())
+    result.sort(key=lambda x: x["grade"], reverse=True) 
+    
+    return result

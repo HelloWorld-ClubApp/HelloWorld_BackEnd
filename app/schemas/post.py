@@ -12,3 +12,13 @@ class PostPreviewResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ClubFeedResponse(BaseModel):
+    id: int = Field(..., description="게시글 고유 ID (클릭 시 해당 게시글로 이동)")
+    title: str = Field(..., description="게시글 제목 (사진 캡션용)")
+    image_url: str = Field(..., description="피드 썸네일 이미지 URL")
+    created_at: datetime = Field(..., description="게시글 등록일")
+
+    class Config:
+        from_attributes = True

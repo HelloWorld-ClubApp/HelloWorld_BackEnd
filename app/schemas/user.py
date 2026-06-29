@@ -1,6 +1,7 @@
 # 작성자 : 엄인섭
 import re
 from pydantic import BaseModel, EmailStr, Field, model_validator
+from typing import Optional, List
 
 # 회원가입 입력 형식(8~20자 제한, 이메일 정규식 등)
 class UserCreate(BaseModel):
@@ -72,3 +73,29 @@ class PasswordResetConfirm(BaseModel):
             raise ValueError("잘못된 비밀번호 형식입니다.")
             
         return self
+    
+
+class UserProfileHeaderResponse(BaseModel):
+    name: str = Field(..., description="사용자 이름")
+    profile_image_url: Optional[str] = Field(None, description="프로필 이미지 URL (없을 경우 null 반환, 프론트에서 기본 이미지 처리)")
+
+    class Config:
+        from_attributes = True
+
+
+class MemberInfo(BaseModel):
+    id: int = Field(..., description="유저 고유 ID")
+    name: str = Field(..., description="이름")
+    role_name: str = Field(..., description="동아리 역할 (예: 회장, 일반회원)")
+    profile_image_url: Optional[str] = Field(None, description="프로필 이미지 URL")
+
+    class Config:
+        from_attributes = True
+
+class MemberGroupResponse(BaseModel):
+    grade: int = Field(..., description="학년 (예: 1, 2)")
+    admission_year: int = Field(..., description="입학년도 (예: 2026)")
+    members: List[MemberInfo] = Field(..., description="해당 학년의 멤버 리스트 (임원진 우선 정렬)")
+
+    class Config:
+        from_attributes = True

@@ -1,6 +1,7 @@
 # FastAPI 애플리케이션 진입점 (설정 로드, 라우터 등록)
 # 작성자 : 엄인섭
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.core.database import engine, Base, SessionLocal
 
@@ -18,7 +19,7 @@ from app.models.schedule import Schedule, Idea
 # ==========================================
 # 라우터(API) 임포트
 # ==========================================
-from app.api.v1 import auth, home, schedules, posts
+from app.api.v1 import auth, home, schedules, posts, users
 
 def init_seed_data():
     """서버 시작 시 필수 기초 데이터(Seed Data)를 DB에 넣는 함수"""
@@ -63,6 +64,14 @@ async def lifespan(app: FastAPI):
 # ==========================================
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 개발 단계에서는 모든 도메인 허용 (나중에는 프론트엔드 URL만 지정)
+    allow_credentials=True,
+    allow_methods=["*"],  # GET, POST, PUT, DELETE 등 모든 메서드 허용
+    allow_headers=["*"],  # Authorization 등 모든 헤더 허용
+)
+
 # ==========================================
 # 라우터 등록 (반드시 app 생성 이후에 위치해야 함!)
 # ==========================================
@@ -70,3 +79,4 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(home.router, prefix="/api/v1/home", tags=["Home"])
 app.include_router(schedules.router, prefix="/api/v1/schedules", tags=["Schedules"])
 app.include_router(posts.router, prefix="/api/v1/posts", tags=["Posts"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])

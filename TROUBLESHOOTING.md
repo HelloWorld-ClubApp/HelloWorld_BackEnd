@@ -35,3 +35,16 @@
 * **원인**: 파싱한 공모전 데이터를 DB에 삽입할 때, 기존 데이터의 존재 여부를 검증하지 않고 무조건 db.add()를 수행하도록 로직이 작성됨.
 
 * **해결**: 공모전의 고유한 식별값(detail_url 또는 title)을 기준으로 기존 DB 데이터를 먼저 조회하는 방어 로직을 추가함. 데이터가 없으면 새로 삽입(Insert)하고, 이미 존재하면 최신 정보로 갱신(Update)하거나 스킵하는 Upsert(Update + Insert) 처리를 구현하여 DB 무결성을 확보함.
+
+
+### 7. Pydantic 스키마 클래스 중첩(Indentation)으로 인한 런타임 ImportError 해결
+
+* **현상**: 서버 구동 시 `ImportError: cannot import name 'UserProfileHeaderResponse' from 'app.schemas.user'` 에러가 발생하며 서버 애플리케이션이 뻗어버리는 현상.
+* **원인**: `schemas/user.py` 파일에 응답 스키마를 추가하는 과정에서, 새로 작성한 `UserProfileHeaderResponse` 클래스의 들여쓰기(Indentation)가 잘못되어 직전 클래스(`PasswordResetConfirm`)의 내부(중첩) 클래스로 선언됨. 이로 인해 외부 라우터 모듈에서 해당 스키마를 전역 스코프에서 찾지 못해 발생한 문제.
+* **해결**: 파이썬의 들여쓰기를 수정하여 해당 스키마를 외부로 빼내어 파일의 최상위 레벨(Global scope)로 분리함. 이를 통해 라우터에서 정상적으로 import 할 수 있도록 조치함.
+
+### 8. 다대다(N:M) 매핑 테이블 복합키(Composite Key) 참조 오류 해결
+
+* **현상**: 메인 페이지 앨범 피드 조회 API (`GET /api/v1/posts/feed`) 호출 시 `500 Internal Server Error` 발생. 에러 로그 확인 결과 `AttributeError: type object 'PostFile' has no attribute 'id'` 출력됨.
+* **원인**: 게시글(`posts`)과 파일(`files`)을 연결하는 중간 매핑 테이블인 `post_files`가 정규화 설계에 따라 단일 `id` 없이 `post_id`와 `file_id`를 복합 기본키(Composite PK)로 사용하고 있었음. 그러나 쿼리의 `order_by()` 절에서 가장 먼저 등록된 사진을 찾기 위해 존재하지 않는 단일 키(`PostFile.id`)를 기준으로 정렬을 시도하여 속성 참조 에러가 발생함.
+* **해결**: 쿼리의 정렬 기준을 중간 매핑 테이블(`PostFile`)이 아닌 원본 파일 테이블의 고유 식별자(`File.id.asc()`)로 변경함. 이를 통해 복합키 구조를 유지하면서도 원하는 정렬 및 다중 조인 결과를 에러 없이 도출하는 데 성공함.

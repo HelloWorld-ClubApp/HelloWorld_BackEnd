@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db # 또는 세션 의존성 주입 경로
-from app.schemas.post import PostPreviewResponse
+from app.schemas.post import PostPreviewResponse, ClubFeedResponse
 from app.crud import crud_post
 
 router = APIRouter()
@@ -26,3 +26,11 @@ def get_latest_posts(db: Session = Depends(get_db)):
     return result
 
 
+@router.get("/feed", response_model=List[ClubFeedResponse], summary="메인 페이지 CLUB FEED (사진 앨범) 조회")
+def get_club_feed(db: Session = Depends(get_db)):
+    """
+    첨부파일(사진)이 포함된 최신 게시글 4개를 조회합니다.
+    - 게시글에 이미지가 여러 개일 경우 가장 첫 번째 이미지를 썸네일로 사용합니다.
+    - 결과가 빈 배열([])일 경우 프론트엔드에서 예외 처리 화면을 보여줍니다.
+    """
+    return crud_post.get_club_feed(db=db, limit=4)
