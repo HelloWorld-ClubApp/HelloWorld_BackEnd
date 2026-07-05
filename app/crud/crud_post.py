@@ -6,6 +6,7 @@ from app.models.post import Post,PostFile
 from app.models.user import User , Role
 from sqlalchemy.orm import Session
 from app.models.file import File
+from app.schemas.post import PostCreate
 
 def get_latest_posts(db: Session, limit: int = 3):
     return (
@@ -79,3 +80,53 @@ def get_notice_list(db: Session, limit: int = 10):
         .limit(limit)
         .all()
     )
+
+#=============================
+# Post_001 공지사항 및 자유게시판 작성, 수정, 삭제 기능
+def create_post(db: Session, post_data: PostCreate, user_id: int):
+    """
+    [Post_001] 게시글(공지사항, 자유게시판) 추가
+    - 앞서 스키마(PostCreate)에서 1차 검열(빈칸, 과거 날짜 방지)을 마친 꺠끗한 데이터를 DB에 적재.
+    - 게시글 작성 후 get_notice_list를 호출하면 정상적으로 목록에 띄워집니다.
+    """
+    db_post = Post(
+        category=post_data.post_type, # 프론트에서 받은 게시글 타입(공지사항 등)을 DB 카테고리에 매핑
+        title=post_data.title,
+        content=post_data.content,
+        schedule_date=post_data.schedule_date,
+        user_id=user_id # 글을 작성한 사람의 고유 ID의 기록
+    )
+    db.add(db_post)
+    db.commit()
+    db.refresh(db_post)
+    return db_post
+
+def update_notice_post(db: Session, post_id: int, post_data: dict):
+    """
+    [Post_001] 공지사항 게시글 수정
+    - 수정할 게시글 번호(post_id)를 찾아 새로운 데이터로 덮어씌웁니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+
+    if db_post:
+        db_post.category = post_data.post_type
+        db_post.title = post_data.title
+        db_post.content = post_data.content
+        db_post.schedule_date = post_data.schedule_date
+        db.commit()
+        db.refresh(db_post)
+
+    return db_post
+
+def delete_notice_post(db: Session, post_id: int):
+    """
+    [Post_001] 공지사항 게시글 삭제
+    - 게시글 번호(post_id)를 찾아 DB에서 완전히 삭제합니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+
+    if db_post:
+        db.delete(db_post)
+        db.commit()
+
+    return db_post
