@@ -130,3 +130,22 @@ def delete_notice_post(db: Session, post_id: int):
         db.commit()
 
     return db_post
+
+#=============================
+# Post_L_002 자유게시판 목록 조회 기능
+def get_free_posts(db: Session, page: int = 1, limit: int = 10):
+    """
+    [Post_L_002] 자유게시판 최신 목록 조회
+    - filter(): '자유게시판' 카테고리만 쏙 골라냄.
+    - order_by(): 만든 날짜(created_at)를 기준으로 최신순(desc)으로 줄 세움.
+    - 페이징: page 번호에 따라 필요한 만큼만(limit) 가져옴.
+    """
+    offset = (page - 1) * limit
+    return (
+        db.query(Post)
+        .filter(Post.category == '자유게시판')
+        .order_by(Post.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )

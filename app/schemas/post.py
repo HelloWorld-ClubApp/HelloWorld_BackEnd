@@ -66,3 +66,19 @@ class PostCreate(BaseModel):
         if value is not None and value < dt.now():
             raise ValueError("현재시간보다 이전의 날짜는 선택할 수 없습니다")
         return value
+    
+# ===============================
+# Post_L_002 자유게시판 전용
+class FreePostResponse(BaseModel):
+    """자유게시판 목록용 데이터 뼈대"""
+    id: int
+    title: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class FreePostListResponse(BaseModel):
+    """자유게시판 목록 조회 최종 응답"""
+    message: Optional[str] = None
+    posts: List[FreePostResponse] = []

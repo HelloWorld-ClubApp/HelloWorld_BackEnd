@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.core.database import get_db # 또는 세션 의존성 주입 경로
-from app.schemas.post import PostPreviewResponse, ClubFeedResponse, NoticeListResponse, PostCreate
+from app.schemas.post import PostPreviewResponse, ClubFeedResponse, NoticeListResponse, PostCreate, FreePostListResponse
 from app.crud import crud_post
 from app.api.dependencies import get_current_user
 
@@ -119,3 +119,22 @@ def delete_notice_api(
     if not deleted_post:
         raise HTTPException(status_code=404, detail="해당 게시글을 찾을 수 없습니다.")
     return {"message": "게시글이 성공적으로 삭제되었습니다."}
+
+#=============================
+# Post_L_002 자유게시판 목록 조회 API
+@router.get("/free", response_model=FreePostListResponse, summary="자유게시판 목록 조회")
+def get_free_post_list(page: int = 1, db: Session = Depends(get_db)):
+    """
+    [Post_L_002] 자유게시판 게시글 목록 조회 API
+    - 최신순으로 정렬된 10개의 게시글을 가져옵니다.
+    - 게시글이 없으면 "등록된 게시글이 없습니다"라는 메시지와 함께 빈 리스트를 반환합니다.
+    """
+    # 1. CRUD 창고에서 자유게시판 데이터 가져오기
+    posts_data = crud_post.get_free_posts(db=db, page=page, limit=10)
+    
+    # 2. 게시글이 없는 경우 친절한 안내 문구 설정
+    if not posts_data:
+        return {"message": "등록된 게시글이 없습니다.", "posts": []}
+    
+    # 3. 데이터 포장해서 배달!
+    return {"posts": posts_data}
