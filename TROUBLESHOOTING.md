@@ -63,3 +63,18 @@
 * **원인**: app/api/v1/posts.py 라우터 파일에서 새로 작성한 NoticeListResponse 스키마를 사용했으나, 해당 파일의 import 구문에 클래스 이름을 누락하여 라우터가 스키마의 존재를 인식하지 못함.
 
 * **해결**: app/api/v1/posts.py 상단의 from app.schemas.post import ... 부분에 NoticeListResponse를 추가하여 모듈 간 의존성을 정상적으로 연결함.
+
+### 11. 인증 토큰 누락으로 인한 API 접근 불가 에러 해결
+* **현상**: 인가(Authorization)가 필요한 API(예: 게시글 작성)를 Postman으로 테스트할 때, 요청이 거부되거나 권한 관련 에러(401 Unauthorized 등)가 발생하여 로직이 수행되지 않는 현상.
+
+* **원인**: API 테스트 과정에서 요청 헤더(Header)에 필수적인 인증 토큰(Access Token)을 포함하지 않고 요청을 보내, 백엔드 서버가 인가받지 않은 사용자의 접근으로 간주하고 차단함.
+
+* **해결**: 회원가입(Signup) API를 통해 사용자 계정을 생성한 후, 로그인(Login) API를 호출하여 정상적으로 Access Token을 발급받음. 이후 Postman의 Authorization 탭(Bearer Token)에 해당 토큰을 삽입하고 재요청하여 API가 정상적으로 작동함을 확인함.
+
+
+### 12. DB 스키마와 백엔드 ORM 모델 불일치로 인한 500 에러 해결
+* **현상**: 게시글 작성 API를 호출하여 데이터를 전송했을 때, 파이썬 코드상에는 문법적 오류가 없음에도 500 Internal Server Error가 발생하며 데이터가 저장되지 않음. (서버 로그: column "schedule_date" of relation "posts" does not exist)
+
+* **원인**: 백엔드 파이썬 모델(models/post.py)과 스키마 구조에는 일정(schedule_date) 데이터를 처리하도록 정의되어 있었으나, 실제 데이터베이스(PostgreSQL)의 posts 테이블에는 해당 컬럼이 아직 존재하지 않아 데이터를 삽입(Insert)하려는 순간 쿼리 충돌이 발생함.
+
+* **해결**: pgAdmin의 쿼리 도구(Query Tool)를 활용하여 ALTER TABLE posts ADD COLUMN schedule_date timestamp with time zone; DDL 쿼리를 직접 실행함. 실제 DB 테이블에 누락된 컬럼을 수동으로 추가하여 백엔드 코드와 DB 스키마 간의 구조를 완벽하게 동기화함으로써 에러를 해결함.
