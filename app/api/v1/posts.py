@@ -1,6 +1,6 @@
 # 게시판(공지, 자유, 질문), 좋아요 (Post_001~003)
 # 작성자 : 엄인섭
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.core.database import get_db # 또는 세션 의존성 주입 경로
@@ -138,3 +138,55 @@ def get_free_post_list(page: int = 1, db: Session = Depends(get_db)):
     
     # 3. 데이터 포장해서 배달!
     return {"posts": posts_data}
+
+#=============================
+# Post_002 자유게시판 작성/수정/삭제 API 추가
+@router.post("/free", summary="자유게시판 게시글 작성")
+def create_free_post_api(
+    post_in: PostCreate,
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    # 1. 작성 제한 확인 (5개)
+    if crud_post.get_user_post_count(db, current_user.id, "자유게시판") >= 5:
+        raise HTTPException(status_code=400, detail="자유게시판은 최대 5개까지만 작성 가능합니다.")
+    
+    # 2. 작성 로직 수행
+    new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
+    return {"message": "게시글이 작성되었습니다.", "data": new_post}
+
+@router.put("/free/{post_id}", summary="자유게시판 게시글 수정")
+def update_free_post_api(
+    post_id: int,
+    post_in: PostCreate,
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    post = crud_post.get_post_by_id(db, post_id)
+    if not post or post.category != "자유게시판":
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+    
+    # 권한 체크: 본인만 수정 가능
+    if post.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="본인이 작성한 게시글만 수정 가능합니다.")
+        
+    updated_post = crud_post.update_free_post(db=db, post_id=post_id, post_data=post_in.dict())
+    return {"message": "수정되었습니다.", "data": updated_post}
+
+@router.delete("/free/{post_id}", summary="자유게시판 게시글 삭제")
+def delete_free_post_api(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    post = crud_post.get_post_by_id(db, post_id)
+    if not post or post.category != "자유게시판":
+        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
+    
+    # 권한 체크: 본인 또는 관리자(role_id=2 가정)만 삭제 가능
+    # (실제 관리자 role 값에 맞춰 수정 필요)
+    if post.user_id != current_user.id and current_user.role_id != 2:
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+        
+    crud_post.delete_free_post(db=db, post_id=post_id)
+    return {"message": "삭제되었습니다."}

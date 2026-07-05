@@ -149,3 +149,33 @@ def get_free_posts(db: Session, page: int = 1, limit: int = 10):
         .limit(limit)
         .all()
     )
+
+#=============================
+# Post_002 자유게시판 추가, 수정, 삭제 및 제한 확인
+def get_user_post_count(db: Session, user_id: int, category: str = "자유게시판"):
+    """[Post_002] 해당 유저의 특정 카테고리 게시글 작성 개수 조회"""
+    return db.query(Post).filter(Post.user_id == user_id, Post.category == category).count()
+
+def get_post_by_id(db: Session, post_id: int):
+    """[Post_002] 게시글 상세 조회 (권한 체크용)"""
+    return db.query(Post).filter(Post.id == post_id).first()
+
+def update_free_post(db: Session, post_id: int, post_data: dict):
+    """[Post_002] 자유게시판 게시글 수정"""
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db_post.title = post_data.get("title", db_post.title)
+        db_post.content = post_data.get("content", db_post.content)
+        # 이미지 URL 처리 로직 필요 시 추가
+        db.commit()
+        db.refresh(db_post)
+    return db_post
+
+def delete_free_post(db: Session, post_id: int):
+    """[Post_002] 자유게시판 게시글 삭제"""
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db.delete(db_post)
+        db.commit()
+        return True
+    return False

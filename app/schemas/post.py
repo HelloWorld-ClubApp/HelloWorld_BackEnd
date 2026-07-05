@@ -82,3 +82,30 @@ class FreePostListResponse(BaseModel):
     """자유게시판 목록 조회 최종 응답"""
     message: Optional[str] = None
     posts: List[FreePostResponse] = []
+
+# ===============================
+# Post_002 자유게시판 상세 및 수정/삭제 폼
+class FreePostDetailResponse(BaseModel):
+    """자유게시판 상세 조회 응답"""
+    id: int
+    title: str
+    content: str
+    image_url: Optional[str]
+    created_at: datetime
+    author_id: int # 본인 확인을 위해 필요
+
+    class Config:
+        from_attributes = True
+
+class FreePostUpdate(BaseModel):
+    """자유게시판 수정 폼"""
+    title: str = Field(..., description="게시글 제목")
+    content: str = Field(..., description="게시글 내용")
+    image_url: Optional[str] = Field(None, description="첨부 이미지 URL")
+
+    @field_validator('title', 'content')
+    @classmethod
+    def check_not_empty(cls, value):
+        if not value or not value.strip():
+            raise ValueError("필수 항목을 입력하세요")
+        return value
