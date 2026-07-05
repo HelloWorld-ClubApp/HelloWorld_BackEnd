@@ -37,7 +37,7 @@ def get_club_feed(db: Session = Depends(get_db)):
     return crud_post.get_club_feed(db=db, limit=4)
 #작성자 : 천석훈 , 김세연, 문호성
 #=============================
-@router.get("/notices", response_model=NoticeListResponse, summary="공지사항 리스트 조회")
+@router.get("/notices", response_model=NoticeListResponse, summary="공지 리스트 조회")
 def get_notice_list_api(db: Session = Depends(get_db)):
     """
     [Post_L_001] 요구사항 정의서 연동 - 공지사항 게시판 목록 조회 API
@@ -52,7 +52,7 @@ def get_notice_list_api(db: Session = Depends(get_db)):
 
 #=============================
 # Post_001 공지사항 및 자유게시판 작성, 수정, 삭제 API
-@router.post("/", summary="게시글 작성 (공지사항/자유게시판)")
+@router.post("/", summary="게시글 작성 (공지/일반)")
 def create_post_api(
     post_in: PostCreate,
     db: Session = Depends(get_db),
@@ -64,13 +64,13 @@ def create_post_api(
     - 공지사항일 경우, 직책이 [회장, 부회장, 총무]인지 최종 권한 검사를 수행합니다.
     """
     # 1. 권한 검사: 작성하려는 글이 '공지사항'일 때만 신분증 확인
-    if post_in.post_type == "공지사항":
+    if post_in.post_type == "공지":
         allowed_roles = ["회장", "부회장", "총무"]
         # (주의: current_user.role 이름은 실제 User 모델 구조에 맞춰 변경해야 할 수 있음.)
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="공지사항을 작성할 권한이 없습니다."
+                detail="공지를 작성할 권한이 없습니다."
             )
             
     # 2. 모든 검사를 통과했으니 CRUD 창고 지시서로 데이터 전달
@@ -78,7 +78,7 @@ def create_post_api(
     return {"message": "게시글이 성공적으로 작성되었습니다.", "data": new_post}
 
 
-@router.put("/{post_id}", summary="공지사항 게시글 수정")
+@router.put("/{post_id}", summary="공지 게시글 수정")
 def update_notice_api(
     post_id: int,
     post_in: PostCreate,
@@ -86,12 +86,12 @@ def update_notice_api(
     current_user: Any = Depends(get_current_user)
 ):
     """[Post_001] 게시글 수정 API"""
-    if post_in.post_type == "공지사항":
+    if post_in.post_type == "공지":
         allowed_roles = ["회장", "부회장", "총무"]
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="공지사항을 수정할 권한이 없습니다."
+                detail="공지를 수정할 권한이 없습니다."
             )
             
     updated_post = crud_post.update_notice_post(db=db, post_id=post_id, post_data=post_in)
@@ -100,7 +100,7 @@ def update_notice_api(
     return {"message": "게시글이 성공적으로 수정되었습니다.", "data": updated_post}
 
 
-@router.delete("/{post_id}", summary="공지사항 게시글 삭제")
+@router.delete("/{post_id}", summary="공지 게시글 삭제")
 def delete_notice_api(
     post_id: int,
     db: Session = Depends(get_db),
@@ -112,7 +112,7 @@ def delete_notice_api(
     if current_user.role not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="공지사항을 삭제할 권한이 없습니다."
+            detail="공지를 삭제할 권한이 없습니다."
         )
         
     deleted_post = crud_post.delete_notice_post(db=db, post_id=post_id)
@@ -122,7 +122,7 @@ def delete_notice_api(
 
 #=============================
 # Post_L_002 자유게시판 목록 조회 API
-@router.get("/free", response_model=FreePostListResponse, summary="자유게시판 목록 조회")
+@router.get("/free", response_model=FreePostListResponse, summary="일반 목록 조회")
 def get_free_post_list(page: int = 1, db: Session = Depends(get_db)):
     """
     [Post_L_002] 자유게시판 게시글 목록 조회 API
@@ -141,21 +141,21 @@ def get_free_post_list(page: int = 1, db: Session = Depends(get_db)):
 
 #=============================
 # Post_002 자유게시판 작성/수정/삭제 API 추가
-@router.post("/free", summary="자유게시판 게시글 작성")
+@router.post("/free", summary="일반 게시글 작성")
 def create_free_post_api(
     post_in: PostCreate,
     db: Session = Depends(get_db),
     current_user: Any = Depends(get_current_user)
 ):
     # 1. 작성 제한 확인 (5개)
-    if crud_post.get_user_post_count(db, current_user.id, "자유게시판") >= 5:
-        raise HTTPException(status_code=400, detail="자유게시판은 최대 5개까지만 작성 가능합니다.")
+    if crud_post.get_user_post_count(db, current_user.id, "일반") >= 5:
+        raise HTTPException(status_code=400, detail="일반은 최대 5개까지만 작성 가능합니다.")
     
     # 2. 작성 로직 수행
     new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
     return {"message": "게시글이 작성되었습니다.", "data": new_post}
 
-@router.put("/free/{post_id}", summary="자유게시판 게시글 수정")
+@router.put("/free/{post_id}", summary="일반 게시글 수정")
 def update_free_post_api(
     post_id: int,
     post_in: PostCreate,
@@ -163,7 +163,7 @@ def update_free_post_api(
     current_user: Any = Depends(get_current_user)
 ):
     post = crud_post.get_post_by_id(db, post_id)
-    if not post or post.category != "자유게시판":
+    if not post or post.category != "일반":
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
     
     # 권한 체크: 본인만 수정 가능
@@ -173,14 +173,14 @@ def update_free_post_api(
     updated_post = crud_post.update_free_post(db=db, post_id=post_id, post_data=post_in.dict())
     return {"message": "수정되었습니다.", "data": updated_post}
 
-@router.delete("/free/{post_id}", summary="자유게시판 게시글 삭제")
+@router.delete("/free/{post_id}", summary="일반 게시글 삭제")
 def delete_free_post_api(
     post_id: int,
     db: Session = Depends(get_db),
     current_user: Any = Depends(get_current_user)
 ):
     post = crud_post.get_post_by_id(db, post_id)
-    if not post or post.category != "자유게시판":
+    if not post or post.category != "일반":
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
     
     # 권한 체크: 본인 또는 관리자(role_id=2 가정)만 삭제 가능

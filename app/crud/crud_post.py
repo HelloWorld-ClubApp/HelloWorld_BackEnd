@@ -93,7 +93,7 @@ def create_post(db: Session, post_data: PostCreate, user_id: int):
         category=post_data.post_type, # 프론트에서 받은 게시글 타입(공지사항 등)을 DB 카테고리에 매핑
         title=post_data.title,
         content=post_data.content,
-        schedule_date=post_data.schedule_date,
+        #schedule_date=post_data.schedule_date,
         user_id=user_id # 글을 작성한 사람의 고유 ID의 기록
     )
     db.add(db_post)
@@ -143,7 +143,7 @@ def get_free_posts(db: Session, page: int = 1, limit: int = 10):
     offset = (page - 1) * limit
     return (
         db.query(Post)
-        .filter(Post.category == '자유게시판')
+        .filter(Post.category == '일반')
         .order_by(Post.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -152,7 +152,7 @@ def get_free_posts(db: Session, page: int = 1, limit: int = 10):
 
 #=============================
 # Post_002 자유게시판 추가, 수정, 삭제 및 제한 확인
-def get_user_post_count(db: Session, user_id: int, category: str = "자유게시판"):
+def get_user_post_count(db: Session, user_id: int, category: str = "일반"):
     """[Post_002] 해당 유저의 특정 카테고리 게시글 작성 개수 조회"""
     return db.query(Post).filter(Post.user_id == user_id, Post.category == category).count()
 

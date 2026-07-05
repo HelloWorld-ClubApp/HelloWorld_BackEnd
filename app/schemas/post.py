@@ -39,13 +39,13 @@ class NoticeResponse(BaseModel):
 
 class NoticeListResponse(BaseModel):
     """공지사항 목록 조회 최종 응답 패키지"""
-    notices: List[NoticeResponse] = Field(..., description="최신순으로 정렬된 공지사항 리스트 (데이터가 없으면 빈 배열 [] 반환)")
+    notices: List[NoticeResponse] = Field(..., description="최신순으로 정렬된 공지 리스트 (데이터가 없으면 빈 배열 [] 반환)")
 
 #===============================
 # Post_001 공지사항 및 게시글 작성 폼 (유효성 검사 포함)
 class PostCreate(BaseModel):
     """게시글 생성 시 프론트엔드로부터 전달받는 데이터 뼈대"""
-    post_type: str = Field(..., description="게시글 타입 (예: 공지사항, 자유게시판)")
+    post_type: str = Field(..., description="게시글 타입 (예: 공지, 일반)")
     title: str = Field(..., description="게시글 제목")
     content: str = Field(..., description="게시글 내용")
     image_url: Optional[str] = Field(None, description="첨부 이미지 URL (선택사항)")

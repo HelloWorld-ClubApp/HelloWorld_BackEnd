@@ -34,8 +34,8 @@ def check_free_post_limit(db, user_id: int):
     """자유게시판 글 작성 5개 제한 확인"""
     from app.crud.crud_post import get_user_post_count
     
-    if get_user_post_count(db, user_id, "자유게시판") >= 5:
-        raise HTTPException(status_code=400, detail="자유게시판은 최대 5개까지만 작성 가능합니다.")
+    if get_user_post_count(db, user_id, "일반") >= 5:
+        raise HTTPException(status_code=400, detail="일반은 최대 5개까지만 작성 가능합니다.")
 
 # 3. 수정/삭제 권한 체크
 def check_post_permission(current_user, post, is_delete: bool = False):
