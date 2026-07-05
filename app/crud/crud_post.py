@@ -93,7 +93,6 @@ def create_post(db: Session, post_data: PostCreate, user_id: int):
         category=post_data.post_type, # 프론트에서 받은 게시글 타입(공지사항 등)을 DB 카테고리에 매핑
         title=post_data.title,
         content=post_data.content,
-        #schedule_date=post_data.schedule_date,
         user_id=user_id # 글을 작성한 사람의 고유 ID의 기록
     )
     db.add(db_post)
@@ -112,7 +111,6 @@ def update_notice_post(db: Session, post_id: int, post_data: dict):
         db_post.category = post_data.post_type
         db_post.title = post_data.title
         db_post.content = post_data.content
-        db_post.schedule_date = post_data.schedule_date
         db.commit()
         db.refresh(db_post)
 
