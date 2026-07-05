@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.core.database import get_db # 또는 세션 의존성 주입 경로
-from app.schemas.post import PostPreviewResponse, ClubFeedResponse, NoticeListResponse, PostCreate, FreePostListResponse
+from app.schemas.post import PostPreviewResponse, ClubFeedResponse, NoticeListResponse, PostCreate, FreePostListResponse,QuestionPostListResponse
 from app.crud import crud_post
 from app.api.dependencies import get_current_user
 
@@ -190,3 +190,28 @@ def delete_free_post_api(
         
     crud_post.delete_free_post(db=db, post_id=post_id)
     return {"message": "삭제되었습니다."}
+
+
+#=============================
+# Post_L_003 질문게시판 목록 조회 API
+@router.get("/question", response_model=QuestionPostListResponse, summary="질문게시판 목록 조회")
+def get_question_post_list(page: int = 1, db: Session = Depends(get_db)):
+    """
+    [Post_L_003] 질문게시판 게시글 목록 조회 API
+    - 최신순 정렬, 페이지당 10개 출력.
+    - 게시글이 없을 경우 안내 문구 반환.
+    """
+    posts_data = crud_post.get_question_posts(db=db, page=page, limit=10)
+    
+    if not posts_data:
+        return {"message": "등록된 게시글이 없습니다.", "posts": []}
+    
+    # 제목 말줄임표 처리 (백엔드 처리 요청 시 적용)
+    for post in posts_data:
+        if len(post.title) > 20:
+            post.title = post.title[:20] + "..."
+            
+    return {"posts": posts_data}
+
+# 질문게시판 작성, 수정, 삭제는 자유게시판 로직과 동일하게 진행 가능
+# 필요 시 위와 같이 /question 경로로 CRUD API를 추가하여 사용

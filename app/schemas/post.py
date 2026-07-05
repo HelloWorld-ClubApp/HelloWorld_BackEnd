@@ -109,3 +109,31 @@ class FreePostUpdate(BaseModel):
         if not value or not value.strip():
             raise ValueError("필수 항목을 입력하세요")
         return value
+    
+    # ===============================
+# Post_L_003 질문게시판 전용
+class QuestionPostResponse(BaseModel):
+    """질문게시판 목록용 데이터 뼈대"""
+    id: int
+    title: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class QuestionPostListResponse(BaseModel):
+    """질문게시판 목록 조회 최종 응답"""
+    message: Optional[str] = None
+    posts: List[QuestionPostResponse] = []
+
+class QuestionPostDetailResponse(BaseModel):
+    """질문게시판 상세 조회 응답"""
+    id: int
+    title: str
+    content: str
+    image_url: Optional[str]
+    created_at: datetime
+    author_id: int
+
+    class Config:
+        from_attributes = True

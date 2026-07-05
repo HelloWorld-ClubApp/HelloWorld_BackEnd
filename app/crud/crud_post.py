@@ -179,3 +179,22 @@ def delete_free_post(db: Session, post_id: int):
         db.commit()
         return True
     return False
+
+#=============================
+# Post_L_003 질문게시판 목록 조회 기능
+def get_question_posts(db: Session, page: int = 1, limit: int = 10):
+    """
+    [Post_L_003] 질문게시판 최신 목록 조회
+    - filter(): '질문' 카테고리만 필터링.
+    - order_by(): 최신등록순(created_at desc) 정렬.
+    - 페이징: page 단위로 limit만큼 조회.
+    """
+    offset = (page - 1) * limit
+    return (
+        db.query(Post)
+        .filter(Post.category == '질문')
+        .order_by(Post.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
