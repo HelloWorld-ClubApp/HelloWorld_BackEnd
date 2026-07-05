@@ -6,6 +6,7 @@ from app.models.post import Post,PostFile
 from app.models.user import User , Role
 from sqlalchemy.orm import Session
 from app.models.file import File
+from app.schemas.post import PostCreate
 
 def get_latest_posts(db: Session, limit: int = 3):
     return (
@@ -79,3 +80,149 @@ def get_notice_list(db: Session, limit: int = 10):
         .limit(limit)
         .all()
     )
+
+#=============================
+# Post_001 공지사항 및 자유게시판 작성, 수정, 삭제 기능
+def create_post(db: Session, post_data: PostCreate, user_id: int):
+    """
+    [Post_001] 게시글(공지사항, 자유게시판) 추가
+    - 앞서 스키마(PostCreate)에서 1차 검열(빈칸, 과거 날짜 방지)을 마친 꺠끗한 데이터를 DB에 적재.
+    - 게시글 작성 후 get_notice_list를 호출하면 정상적으로 목록에 띄워집니다.
+    """
+    db_post = Post(
+        category=post_data.post_type, # 프론트에서 받은 게시글 타입(공지사항 등)을 DB 카테고리에 매핑
+        title=post_data.title,
+        content=post_data.content,
+        schedule_date=post_data.schedule_date,
+        user_id=user_id # 글을 작성한 사람의 고유 ID의 기록
+    )
+    db.add(db_post)
+    db.commit()
+    db.refresh(db_post)
+    return db_post
+
+def update_notice_post(db: Session, post_id: int, post_data: dict):
+    """
+    [Post_001] 공지사항 게시글 수정
+    - 수정할 게시글 번호(post_id)를 찾아 새로운 데이터로 덮어씌웁니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+
+    if db_post:
+        db_post.category = post_data.post_type
+        db_post.title = post_data.title
+        db_post.content = post_data.content
+        db_post.schedule_date = post_data.schedule_date
+        db.commit()
+        db.refresh(db_post)
+
+    return db_post
+
+def delete_notice_post(db: Session, post_id: int):
+    """
+    [Post_001] 공지사항 게시글 삭제
+    - 게시글 번호(post_id)를 찾아 DB에서 완전히 삭제합니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+
+    if db_post:
+        db.delete(db_post)
+        db.commit()
+
+    return db_post
+
+#=============================
+# Post_L_002 자유게시판 목록 조회 기능
+def get_free_posts(db: Session, page: int = 1, limit: int = 10):
+    """
+    [Post_L_002] 자유게시판 최신 목록 조회
+    - filter(): '자유게시판' 카테고리만 쏙 골라냄.
+    - order_by(): 만든 날짜(created_at)를 기준으로 최신순(desc)으로 줄 세움.
+    - 페이징: page 번호에 따라 필요한 만큼만(limit) 가져옴.
+    """
+    offset = (page - 1) * limit
+    return (
+        db.query(Post)
+        .filter(Post.category == '일반')
+        .order_by(Post.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+#=============================
+# Post_002 자유게시판 추가, 수정, 삭제 및 제한 확인
+def get_user_post_count(db: Session, user_id: int, category: str = "일반"):
+    """[Post_002] 해당 유저의 특정 카테고리 게시글 작성 개수 조회"""
+    return db.query(Post).filter(Post.user_id == user_id, Post.category == category).count()
+
+def get_post_by_id(db: Session, post_id: int):
+    """[Post_002] 게시글 상세 조회 (권한 체크용)"""
+    return db.query(Post).filter(Post.id == post_id).first()
+
+def update_free_post(db: Session, post_id: int, post_data: dict):
+    """[Post_002] 자유게시판 게시글 수정"""
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db_post.title = post_data.get("title", db_post.title)
+        db_post.content = post_data.get("content", db_post.content)
+        # 이미지 URL 처리 로직 필요 시 추가
+        db.commit()
+        db.refresh(db_post)
+    return db_post
+
+def delete_free_post(db: Session, post_id: int):
+    """[Post_002] 자유게시판 게시글 삭제"""
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db.delete(db_post)
+        db.commit()
+        return True
+    return False
+
+#=============================
+# Post_L_003 질문게시판 목록 조회 기능
+def get_question_posts(db: Session, page: int = 1, limit: int = 10):
+    """
+    [Post_L_003] 질문게시판 최신 목록 조회
+    - filter(): '질문' 카테고리만 필터링.
+    - order_by(): 최신등록순(created_at desc) 정렬.
+    - 페이징: page 단위로 limit만큼 조회.
+    """
+    offset = (page - 1) * limit
+    return (
+        db.query(Post)
+        .filter(Post.category == '질문')
+        .order_by(Post.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+#=============================
+# Post_003 질문게시판 수정, 삭제
+def update_question_post(db: Session, post_id: int, post_data: dict):
+    """
+    [Post_003] 질문게시판 게시글 수정
+    - 제목과 내용을 덮어씌웁니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db_post.title = post_data.get("title", db_post.title)
+        db_post.content = post_data.get("content", db_post.content)
+        # 파일 URL 등 추가 필드가 있다면 여기에 반영
+        db.commit()
+        db.refresh(db_post)
+    return db_post
+
+def delete_question_post(db: Session, post_id: int):
+    """
+    [Post_003] 질문게시판 게시글 삭제
+    - DB에서 해당 레코드를 삭제합니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db.delete(db_post)
+        db.commit()
+        return True
+    return False
