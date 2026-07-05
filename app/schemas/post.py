@@ -137,3 +137,18 @@ class QuestionPostDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+        # ===============================
+# Post_003 질문게시판 수정 폼
+class QuestionPostUpdate(BaseModel):
+    """질문게시판 수정 폼"""
+    title: str = Field(..., description="게시글 제목")
+    content: str = Field(..., description="게시글 내용")
+    image_url: Optional[str] = Field(None, description="첨부 이미지 URL")
+
+    @field_validator('title', 'content')
+    @classmethod
+    def check_not_empty(cls, value):
+        if not value or not value.strip():
+            raise ValueError("필수 항목을 입력하세요")
+        return value

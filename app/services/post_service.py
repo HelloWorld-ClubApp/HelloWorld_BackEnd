@@ -56,3 +56,13 @@ def check_post_permission(current_user, post, is_delete: bool = False):
         status_code=status.HTTP_403_FORBIDDEN, 
         detail="권한이 없습니다."
     )
+
+# 4. 질문게시판 작성 제한 검사
+def check_question_post_limit(db, user_id: int):
+    """
+    [Post_003] 질문게시판 글 작성 5개 제한 확인
+    """
+    from app.crud.crud_post import get_user_post_count
+    
+    if get_user_post_count(db, user_id, "질문") >= 5:
+        raise HTTPException(status_code=400, detail="질문게시판은 최대 5개까지만 작성 가능합니다.")

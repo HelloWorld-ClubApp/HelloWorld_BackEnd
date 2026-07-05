@@ -198,3 +198,31 @@ def get_question_posts(db: Session, page: int = 1, limit: int = 10):
         .limit(limit)
         .all()
     )
+
+#=============================
+# Post_003 질문게시판 수정, 삭제
+def update_question_post(db: Session, post_id: int, post_data: dict):
+    """
+    [Post_003] 질문게시판 게시글 수정
+    - 제목과 내용을 덮어씌웁니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db_post.title = post_data.get("title", db_post.title)
+        db_post.content = post_data.get("content", db_post.content)
+        # 파일 URL 등 추가 필드가 있다면 여기에 반영
+        db.commit()
+        db.refresh(db_post)
+    return db_post
+
+def delete_question_post(db: Session, post_id: int):
+    """
+    [Post_003] 질문게시판 게시글 삭제
+    - DB에서 해당 레코드를 삭제합니다.
+    """
+    db_post = db.query(Post).filter(Post.id == post_id).first()
+    if db_post:
+        db.delete(db_post)
+        db.commit()
+        return True
+    return False

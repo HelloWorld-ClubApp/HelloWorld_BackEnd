@@ -215,3 +215,62 @@ def get_question_post_list(page: int = 1, db: Session = Depends(get_db)):
 
 # 질문게시판 작성, 수정, 삭제는 자유게시판 로직과 동일하게 진행 가능
 # 필요 시 위와 같이 /question 경로로 CRUD API를 추가하여 사용
+
+
+#=============================
+# Post_003 질문게시판 작성/수정/삭제 API 추가
+@router.post("/question", summary="질문게시판 게시글 작성")
+def create_question_post_api(
+    post_in: PostCreate,
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    """
+    [Post_003] 질문게시판 작성
+    - 5개 작성 제한 확인
+    - 이미지/파일 확장자 및 용량 검증은 파일 업로드 공통 API(서비스)에서 처리됨
+    """
+    # 1. 작성 제한 확인 (5개)
+    if crud_post.get_user_post_count(db, current_user.id, "질문") >= 5:
+        raise HTTPException(status_code=400, detail="질문게시판은 최대 5개까지만 작성 가능합니다.")
+    
+    # 2. 작성 로직 수행 (프론트에서 post_in.post_type을 "질문"으로 보내야 함)
+    new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
+    return {"message": "질문 게시글이 성공적으로 작성되었습니다.", "data": new_post}
+
+@router.put("/question/{post_id}", summary="질문게시판 게시글 수정")
+def update_question_post_api(
+    post_id: int,
+    post_in: PostCreate, 
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    """[Post_003] 질문게시판 수정 (본인만 가능)"""
+    post = crud_post.get_post_by_id(db, post_id)
+    if not post or post.category != "질문":
+        raise HTTPException(status_code=404, detail="해당 질문 게시글을 찾을 수 없습니다.")
+    
+    # 권한 체크: 본인만 수정 가능
+    if post.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="본인이 작성한 질문 게시글만 수정 가능합니다.")
+        
+    updated_post = crud_post.update_question_post(db=db, post_id=post_id, post_data=post_in.dict())
+    return {"message": "질문 게시글이 수정되었습니다.", "data": updated_post}
+
+@router.delete("/question/{post_id}", summary="질문게시판 게시글 삭제")
+def delete_question_post_api(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    """[Post_003] 질문게시판 삭제 (본인 또는 관리자만 가능)"""
+    post = crud_post.get_post_by_id(db, post_id)
+    if not post or post.category != "질문":
+        raise HTTPException(status_code=404, detail="해당 질문 게시글을 찾을 수 없습니다.")
+    
+    # 권한 체크: 본인 또는 최고 관리자(role_id=2 가정)만 삭제 가능
+    if post.user_id != current_user.id and getattr(current_user, 'role_id', None) != 2:
+        raise HTTPException(status_code=403, detail="질문 게시글을 삭제할 권한이 없습니다.")
+        
+    crud_post.delete_question_post(db=db, post_id=post_id)
+    return {"message": "질문 게시글이 성공적으로 삭제되었습니다."}
