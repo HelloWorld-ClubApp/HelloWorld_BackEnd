@@ -48,3 +48,18 @@
 * **현상**: 메인 페이지 앨범 피드 조회 API (`GET /api/v1/posts/feed`) 호출 시 `500 Internal Server Error` 발생. 에러 로그 확인 결과 `AttributeError: type object 'PostFile' has no attribute 'id'` 출력됨.
 * **원인**: 게시글(`posts`)과 파일(`files`)을 연결하는 중간 매핑 테이블인 `post_files`가 정규화 설계에 따라 단일 `id` 없이 `post_id`와 `file_id`를 복합 기본키(Composite PK)로 사용하고 있었음. 그러나 쿼리의 `order_by()` 절에서 가장 먼저 등록된 사진을 찾기 위해 존재하지 않는 단일 키(`PostFile.id`)를 기준으로 정렬을 시도하여 속성 참조 에러가 발생함.
 * **해결**: 쿼리의 정렬 기준을 중간 매핑 테이블(`PostFile`)이 아닌 원본 파일 테이블의 고유 식별자(`File.id.asc()`)로 변경함. 이를 통해 복합키 구조를 유지하면서도 원하는 정렬 및 다중 조인 결과를 에러 없이 도출하는 데 성공함.
+
+### 9. Pydantic 타입 어댑터(TypeAdapter) 검증 오류 해결
+
+* **현상** : 공지사항 리스트 조회 API(GET /api/v1/posts/notices) 호출 시 500 Internal Server Error 발생. 서버 로그에서 PydanticUserError: ... is not fully defined 메시지 출력.
+
+* **원인** : schemas/post.py 파일 내 NoticeListResponse 스키마를 작성하는 과정에서 리스트 타입을 감싸는 List 모듈을 임포트하지 않았음. 이로 인해 Pydantic이 리스트 내부의 NoticeResponse 객체 타입을 파악하지 못하고 검증 과정에서 런타임 에러를 발생시킴.
+
+* **해결**: from typing import List 구문을 파일 상단에 추가하여 명시적으로 타입을 정의함. 이후 스키마 클래스 내부에서 notices: List[NoticeResponse] = Field(...)와 같이 정상적으로 타입을 지정하여 타입 어댑터가 올바르게 작동하도록 구조를 바로잡음.
+
+### 10. API 라우터 스키마 미등록으로 인한 NameError 발생
+* **현상**: 서버 구동 시 NameError: name 'NoticeListResponse' is not defined 에러 발생.
+
+* **원인**: app/api/v1/posts.py 라우터 파일에서 새로 작성한 NoticeListResponse 스키마를 사용했으나, 해당 파일의 import 구문에 클래스 이름을 누락하여 라우터가 스키마의 존재를 인식하지 못함.
+
+* **해결**: app/api/v1/posts.py 상단의 from app.schemas.post import ... 부분에 NoticeListResponse를 추가하여 모듈 간 의존성을 정상적으로 연결함.

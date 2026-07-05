@@ -62,3 +62,20 @@ def get_club_feed(db: Session, limit: int = 4):
             break
             
     return result
+#작성자 : 천석훈 , 김세연, 문호성
+#=============================
+def get_notice_list(db: Session, limit: int = 10):
+    """
+    [Post_L_001] 요구사항 정의서 연동 공지사항 최신 목록 조회
+    - filter(): category가 '공지'인 행만 엄격하게 식별
+    - order_by(): 최신등록순 정렬 오더 반영 (created_at desc)
+    - limit(): 한 페이지당 최대 10개 출력 스펙 충족
+    - 데이터가 존재하지 않을 경우 빈 리스트([])를 정상 반환하여 프론트엔드 예외 처리 유도
+    """
+    return (
+        db.query(Post)
+        .filter(Post.category == '공지')
+        .order_by(Post.created_at.desc())
+        .limit(limit)
+        .all()
+    )
