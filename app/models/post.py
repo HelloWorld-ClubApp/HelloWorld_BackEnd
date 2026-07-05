@@ -17,6 +17,7 @@ class Post(Base):
     category: Mapped[str] = mapped_column(String(7))
     title: Mapped[str] = mapped_column(String(200))
     content: Mapped[str] = mapped_column(Text)
+    schedule_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped["User"] = relationship()

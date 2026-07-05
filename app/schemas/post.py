@@ -49,6 +49,7 @@ class PostCreate(BaseModel):
     title: str = Field(..., description="게시글 제목")
     content: str = Field(..., description="게시글 내용")
     image_url: Optional[str] = Field(None, description="첨부 이미지 URL (선택사항)")
+    schedule_date: Optional[datetime] = Field(None, description="일정 선택 (선택 사항, 과거 날짜 불가)")
 
     @field_validator('post_type', 'title', 'content')
     @classmethod
@@ -58,6 +59,13 @@ class PostCreate(BaseModel):
             raise ValueError("필수 항목을 입력하세요")
         return value
    
+    @field_validator('schedule_date')
+    @classmethod
+    def check_schedule_date(cls, value):
+        """과거 날짜 입력 방지 로직"""
+        if value is not None and value < dt.now():
+            raise ValueError("현재시간보다 이전의 날짜는 선택할 수 없습니다")
+        return value
 # ===============================
 # Post_L_002 자유게시판 전용
 class FreePostResponse(BaseModel):
