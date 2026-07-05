@@ -22,6 +22,7 @@
 * **원인**: 구글 계정에서 발급받은 16자리 앱 비밀번호를 `.env` 파일에 복사하는 과정에서 `xxxx xxxx xxxx xxxx` 형태의 공백이 그대로 포함되어, 파이썬 내부에서 비밀번호 불일치로 판정됨.
 * **해결**: `EMAIL_PASSWORD=xxxxxxxxxxxxxxxx` 형태로 공백을 완전히 제거하여 인증에 성공함. (환경변수 세팅 시 공백 주의)
 
+구글 앱 비밀번호 asdj as13 asjk zxck
 
 ### 5. Bcrypt 비밀번호 72바이트 길이 제한 (72-byte Limit) 방어
 
