@@ -21,3 +21,7 @@ Thumbs.db
 # Alembic (Migration)
 # alembic.ini 자체는 올려도 되지만, 혹시 모를 로컬 db 파일 방지
 *.sqlite3
+
+
+/uploads
+uploads

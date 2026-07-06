@@ -2,7 +2,7 @@
 # 작성자 : 엄인섭
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, ForeignKey, SmallInteger, CHAR, DateTime
+from sqlalchemy import String, ForeignKey, SmallInteger, CHAR, DateTime, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -64,6 +64,12 @@ class User(Base):
     status: Mapped[str] = mapped_column(CHAR(2), default='재학') # 학적 상태
     phone: Mapped[str] = mapped_column(String(13)) # 휴대폰 번호
     admission_year: Mapped[int] = mapped_column(SmallInteger) # 입학 연도
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)  
+
+    # [스마트 프로퍼티] 이름 마스킹
+    @property
+    def display_name(self) -> str:
+        return "알 수 없음" if self.is_deleted else self.name
     
     # 외래키 설정
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
