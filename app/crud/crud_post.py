@@ -226,3 +226,12 @@ def delete_question_post(db: Session, post_id: int):
         db.commit()
         return True
     return False
+
+class CRUDPost:
+    def __init__(self, model):
+        self.model = model
+    def get_post(self, db, post_id):
+        return db.query(self.model).filter(self.model.id == post_id).first()
+    
+from app.models.post import Post
+post_crud = CRUDPost(Post)

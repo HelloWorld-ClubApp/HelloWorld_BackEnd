@@ -79,3 +79,21 @@
 * **원인**: 백엔드 파이썬 모델(models/post.py)과 스키마 구조에는 일정(schedule_date) 데이터를 처리하도록 정의되어 있었으나, 실제 데이터베이스(PostgreSQL)의 posts 테이블에는 해당 컬럼이 아직 존재하지 않아 데이터를 삽입(Insert)하려는 순간 쿼리 충돌이 발생함.
 
 * **해결**: pgAdmin의 쿼리 도구(Query Tool)를 활용하여 ALTER TABLE posts ADD COLUMN schedule_date timestamp with time zone; DDL 쿼리를 직접 실행함. 실제 DB 테이블에 누락된 컬럼을 수동으로 추가하여 백엔드 코드와 DB 스키마 간의 구조를 완벽하게 동기화함으로써 에러를 해결함.
+
+### 13. 라우터 Prefix 중복 및 참조 무결성(DB 데이터 부재)으로 인한 404 Not Found 에러 해결
+* **현상**: 댓글 작성 API를 호출했을 때, 포스트맨에서 404 Not Found 에러가 발생하거나 {"detail": "해당 게시글을 찾을 수 없습니다."}라는 커스텀 예외 메시지가 반환되며 통신이 거부됨.
+
+* **원인**: URL 라우팅 구조 결함: 중앙 설정 파일(main.py)에서 라우터를 등록할 때 prefix="/api/v1/posts"를 지정했으나, 개별 라우터 파일(comments.py)에서도 @router.post("/posts/{post_id}/comments")로 중복 선언하여, 최종 엔드포인트가 /api/v1/posts/posts/{post_id}/comments로 비정상적으로 결합됨.
+
+DB 참조 데이터 부재: URL 경로를 정상적으로 수정한 후에도 테스트 시 임의의 게시글 번호(예: 1)를 URL 파라미터에 하드코딩하여 요청함. 실제 데이터베이스의 posts 테이블에는 해당 ID를 가진 레코드가 존재하지 않아 서비스 로직에서 예외 처리가 발생함.
+
+* **해결**: comments.py의 라우터 경로에서 중복되는 /posts를 제거하고 @router.post("/{post_id}/comments")로 수정하여 백엔드 API 명세서에 맞는 정확한 엔드포인트 URL 구조를 확립함.
+
+게시글 작성 API(POST /api/v1/posts)를 먼저 호출하여 DB에 실제 테스트용 게시글 데이터를 적재한 후, 응답받은 유효한 글 번호(ID)를 댓글 API URL 파라미터에 주입하여 통신 및 데이터 삽입을 성공시킴.
+
+### 14. HTTP 인증 헤더(Bearer Token) 파싱 오류로 인한 401 Unauthorized 에러 해결
+* **현상**: 로그인 API를 통해 발급받은 정상적인 JWT(JSON Web Token)를 포스트맨에 등록하여 댓글 작성 API를 호출했으나, 서버에서 401 Unauthorized 또는 {"detail": "인증 정보를 확인할 수 없거나 토큰이 만료되었습니다."} 예외를 반환함.
+
+* **원인**: 포스트맨을 통한 API 테스트 과정에서 HTTP 프로토콜의 표준 Authorization 헤더 규칙을 위반함. JSON 응답 객체에 있는 토큰 값을 복사할 때 불필요한 쌍따옴표(") 기호를 포함하여 복사했거나, 헤더 전달 시 인증 타입인 Bearer 문자열과 실제 토큰 값 사이에 필수적으로 요구되는 공백(Space) 문자가 누락되어 서버의 인증 미들웨어가 토큰을 정상적으로 파싱하지 못함.
+
+* **해결**: 포스트맨의 Authorization 탭에서 인증 타입을 Bearer Token으로 명확히 지정함. 토큰 입력란에는 쌍따옴표 등 불필요한 문자를 완벽히 제거한 '순수 JWT 문자열(Payload)'만을 기입하여, 서버 측으로 전송될 때 Authorization: Bearer <토큰값> 형태의 표준 규격 헤더로 결합되도록 조치함으로써 인증 인가 문제를 해결함.
