@@ -33,9 +33,17 @@ class UserResponse(BaseModel):
     name: str
     admission_year: int
     status: str
+    is_deleted: bool
 
     class Config:
         from_attributes = True
+
+    # 2. 데이터가 스키마로 들어온 후(after), 이름 마스킹 처리
+    @model_validator(mode='after')
+    def mask_deleted_user(self) -> 'UserResponse':
+        if self.is_deleted:
+            self.name = "알 수 없음"
+        return self
         
         
         
