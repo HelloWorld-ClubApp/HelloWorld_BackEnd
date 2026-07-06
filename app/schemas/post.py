@@ -11,9 +11,6 @@ class PostPreviewResponse(BaseModel):
     author_role: str = Field(..., description="작성자 역할 (예: 회장, 부회장, 일반)")
     created_at: datetime = Field(..., description="게시글 생성(작성) 날짜 및 시간")
 
-    class Config:
-        from_attributes = True
-
 
 class ClubFeedResponse(BaseModel):
     id: int = Field(..., description="게시글 고유 ID (클릭 시 해당 게시글로 이동)")
