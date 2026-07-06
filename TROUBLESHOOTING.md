@@ -49,3 +49,33 @@
 * **현상**: 메인 페이지 앨범 피드 조회 API (`GET /api/v1/posts/feed`) 호출 시 `500 Internal Server Error` 발생. 에러 로그 확인 결과 `AttributeError: type object 'PostFile' has no attribute 'id'` 출력됨.
 * **원인**: 게시글(`posts`)과 파일(`files`)을 연결하는 중간 매핑 테이블인 `post_files`가 정규화 설계에 따라 단일 `id` 없이 `post_id`와 `file_id`를 복합 기본키(Composite PK)로 사용하고 있었음. 그러나 쿼리의 `order_by()` 절에서 가장 먼저 등록된 사진을 찾기 위해 존재하지 않는 단일 키(`PostFile.id`)를 기준으로 정렬을 시도하여 속성 참조 에러가 발생함.
 * **해결**: 쿼리의 정렬 기준을 중간 매핑 테이블(`PostFile`)이 아닌 원본 파일 테이블의 고유 식별자(`File.id.asc()`)로 변경함. 이를 통해 복합키 구조를 유지하면서도 원하는 정렬 및 다중 조인 결과를 에러 없이 도출하는 데 성공함.
+
+### 9. Pydantic 타입 어댑터(TypeAdapter) 검증 오류 해결
+
+* **현상** : 공지사항 리스트 조회 API(GET /api/v1/posts/notices) 호출 시 500 Internal Server Error 발생. 서버 로그에서 PydanticUserError: ... is not fully defined 메시지 출력.
+
+* **원인** : schemas/post.py 파일 내 NoticeListResponse 스키마를 작성하는 과정에서 리스트 타입을 감싸는 List 모듈을 임포트하지 않았음. 이로 인해 Pydantic이 리스트 내부의 NoticeResponse 객체 타입을 파악하지 못하고 검증 과정에서 런타임 에러를 발생시킴.
+
+* **해결**: from typing import List 구문을 파일 상단에 추가하여 명시적으로 타입을 정의함. 이후 스키마 클래스 내부에서 notices: List[NoticeResponse] = Field(...)와 같이 정상적으로 타입을 지정하여 타입 어댑터가 올바르게 작동하도록 구조를 바로잡음.
+
+### 10. API 라우터 스키마 미등록으로 인한 NameError 발생
+* **현상**: 서버 구동 시 NameError: name 'NoticeListResponse' is not defined 에러 발생.
+
+* **원인**: app/api/v1/posts.py 라우터 파일에서 새로 작성한 NoticeListResponse 스키마를 사용했으나, 해당 파일의 import 구문에 클래스 이름을 누락하여 라우터가 스키마의 존재를 인식하지 못함.
+
+* **해결**: app/api/v1/posts.py 상단의 from app.schemas.post import ... 부분에 NoticeListResponse를 추가하여 모듈 간 의존성을 정상적으로 연결함.
+
+### 11. 인증 토큰 누락으로 인한 API 접근 불가 에러 해결
+* **현상**: 인가(Authorization)가 필요한 API(예: 게시글 작성)를 Postman으로 테스트할 때, 요청이 거부되거나 권한 관련 에러(401 Unauthorized 등)가 발생하여 로직이 수행되지 않는 현상.
+
+* **원인**: API 테스트 과정에서 요청 헤더(Header)에 필수적인 인증 토큰(Access Token)을 포함하지 않고 요청을 보내, 백엔드 서버가 인가받지 않은 사용자의 접근으로 간주하고 차단함.
+
+* **해결**: 회원가입(Signup) API를 통해 사용자 계정을 생성한 후, 로그인(Login) API를 호출하여 정상적으로 Access Token을 발급받음. 이후 Postman의 Authorization 탭(Bearer Token)에 해당 토큰을 삽입하고 재요청하여 API가 정상적으로 작동함을 확인함.
+
+
+### 12. DB 스키마와 백엔드 ORM 모델 불일치로 인한 500 에러 해결
+* **현상**: 게시글 작성 API를 호출하여 데이터를 전송했을 때, 파이썬 코드상에는 문법적 오류가 없음에도 500 Internal Server Error가 발생하며 데이터가 저장되지 않음. (서버 로그: column "schedule_date" of relation "posts" does not exist)
+
+* **원인**: 백엔드 파이썬 모델(models/post.py)과 스키마 구조에는 일정(schedule_date) 데이터를 처리하도록 정의되어 있었으나, 실제 데이터베이스(PostgreSQL)의 posts 테이블에는 해당 컬럼이 아직 존재하지 않아 데이터를 삽입(Insert)하려는 순간 쿼리 충돌이 발생함.
+
+* **해결**: pgAdmin의 쿼리 도구(Query Tool)를 활용하여 ALTER TABLE posts ADD COLUMN schedule_date timestamp with time zone; DDL 쿼리를 직접 실행함. 실제 DB 테이블에 누락된 컬럼을 수동으로 추가하여 백엔드 코드와 DB 스키마 간의 구조를 완벽하게 동기화함으로써 에러를 해결함.
