@@ -34,6 +34,7 @@ def get_calendar_events(db: Session, year: int, month: int, current_user_id: int
         results.append({
             "id": s.id, 
             "title": s.title,
+            "content": s.content,
             "start_date": s.start_date,
             "end_date": s.end_date,
             "category": "PERSONAL", 
@@ -46,6 +47,7 @@ def get_calendar_events(db: Session, year: int, month: int, current_user_id: int
         results.append({
             "id": p.id,
             "title": p.title,
+            "content": p.content,
             "start_date": p.created_at,
             "end_date": p.created_at,
             "category": "NOTICE",
@@ -75,9 +77,9 @@ def get_daily_schedules(db: Session, target_date: date, current_user_id: int):
     
     results = []
     for s in schedules:
-        results.append({"id": s.id, "title": s.title, "start_date": s.start_date, "end_date": s.end_date, "category": "PERSONAL", "color": s.color, "author_id": s.user_id})
+        results.append({"id": s.id, "title": s.title, "content": s.content if s.content is not None else "", "start_date": s.start_date, "end_date": s.end_date, "category": "PERSONAL", "color": s.color, "author_id": s.user_id})
     for p in notices:
-        results.append({"id": p.id, "title": p.title, "start_date": p.created_at, "end_date": p.created_at, "category": "NOTICE", "color": "#FF0000", "author_id": p.user_id})
+        results.append({"id": p.id, "title": p.title, "content": p.content if p.content is not None else "", "start_date": p.created_at, "end_date": p.created_at, "category": "NOTICE", "color": "#FF0000", "author_id": p.user_id})
         
     return results
 
@@ -85,6 +87,7 @@ def create_user_schedule(db: Session, schedule_data: ScheduleCreate, user_id: in
     db_schedule = Schedule(
         user_id=user_id,
         title=schedule_data.title,
+        content=schedule_data.content,
         start_date=schedule_data.start_date,
         end_date=schedule_data.end_date,
         color=schedule_data.color
@@ -99,6 +102,7 @@ def update_schedule(db: Session, sid: int, user_id: int, data: ScheduleUpdate):
     if not schedule:
         return None 
     schedule.title = data.title
+    schedule.content = data.content
     schedule.start_date = data.start_date
     schedule.end_date = data.end_date
     schedule.color = data.color

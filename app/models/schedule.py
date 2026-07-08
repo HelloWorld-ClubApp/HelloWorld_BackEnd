@@ -11,6 +11,7 @@ class Schedule(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(Text)
+    content: Mapped[str] = mapped_column(Text, nullable=True)
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     color: Mapped[str] = mapped_column(String(7), default="#3B82F6")

@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from app.core.config import settings
 from app.core.database import Base
 import pkgutil
+from app.models import *  # 모든 모델을 임포트하여 Alembic이 인식하도록 함
 import app.models as models
 
 # this is the Alembic Config object, which provides
