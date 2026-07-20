@@ -1,8 +1,8 @@
 # 게시글 조회, 페이징 로직
 # 작성자 : 엄인섭
 from sqlalchemy.orm import Session
-from sqlalchemy import case
-from app.models.post import Post,PostFile
+from sqlalchemy import case, desc
+from app.models.post import Like, Post,PostFile
 from app.models.user import User , Role
 from sqlalchemy.orm import Session
 from app.models.file import File
@@ -235,3 +235,45 @@ class CRUDPost:
     
 from app.models.post import Post
 post_crud = CRUDPost(Post)
+
+
+
+# ==========================================
+# [MY_005] 내가 쓴 게시물 조회 (무한 스크롤 페이징)
+# 작성자 : 엄인섭
+# ==========================================
+def get_posts_by_user(db: Session, user_id: int, skip: int = 0, limit: int = 20):
+    # 전체 개수 산출 (프론트 무한 스크롤 판단용)
+    total_count = db.query(Post).filter(Post.user_id == user_id).count()
+    
+    # 최신순(created_at desc) 정렬 후 페이징 조회
+    posts = (
+        db.query(Post)
+        .filter(Post.user_id == user_id)
+        .order_by(desc(Post.created_at))
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return total_count, posts
+
+# ==========================================
+# [MY_006] 좋아요 누른 게시물 조회 (좋아요 누른 시간 기준)
+# ==========================================
+def get_liked_posts_by_user(db: Session, user_id: int, skip: int = 0, limit: int = 20):
+    query = (
+        db.query(Post)
+        .join(Like, Post.id == Like.post_id)
+        .filter(Like.user_id == user_id)
+    )
+    
+    total_count = query.count()
+    
+    # Post.created_at이 아닌 Like.created_at 최신순 정렬!
+    posts = (
+        query.order_by(desc(Like.created_at))
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return total_count, posts

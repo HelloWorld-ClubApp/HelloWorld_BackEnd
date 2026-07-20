@@ -148,3 +148,21 @@ class QuestionPostUpdate(BaseModel):
         if not value or not value.strip():
             raise ValueError("필수 항목을 입력하세요")
         return value
+    
+
+# ==========================================
+# [MY_005, MY_006] 마이페이지 게시물 목록 응답 스키마
+# 작성자 : 엄인섭
+# ==========================================
+class PostListResponse(BaseModel):
+    id: int = Field(..., description="게시글 고유번호")
+    category: str = Field(..., description="게시판 카테고리")
+    title: str = Field(..., description="게시글 제목")
+    created_at: datetime = Field(..., description="게시글 작성 일시")
+
+    class Config:
+        from_attributes = True
+
+class PaginatedPostResponse(BaseModel):
+    total_count: int = Field(..., description="전체 게시글 수 (무한 스크롤 기준점)")
+    posts: List[PostListResponse] = Field(..., description="게시글 목록 (최대 20개)")

@@ -107,3 +107,11 @@ class MemberGroupResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==========================================
+# [MY_007] 회원 탈퇴 요청 스키마
+# 작성자 : 엄인섭
+# ==========================================
+class UserWithdrawRequest(BaseModel):
+    current_password: str = Field(..., description="본인 확인용 현재 비밀번호")

@@ -92,3 +92,20 @@ def get_club_members_grouped(db: Session, see_all: bool = False):
     result.sort(key=lambda x: x["grade"], reverse=True) 
     
     return result
+
+
+
+# ==========================================
+# [MY_007] 회원 탈퇴 (Soft Delete)
+# 작성자 : 엄인섭
+# ==========================================
+def soft_delete_user(db: Session, user_id: int):
+    """
+    물리적 삭제(Delete) 대신 is_deleted 플래그를 True로 업데이트합니다.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.is_deleted = True
+        # 민감 정보 마스킹이 필요하다면 여기서 추가 처리 가능
+        db.commit()
+    return user

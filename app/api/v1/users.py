@@ -6,29 +6,57 @@ from app.core.database import get_db
 from app.api.dependencies import get_current_user # 토큰 검증 의존성
 from app.models.user import User
 from app.models.file import File # DB 설계상의 files 테이블
-from app.schemas.user import UserProfileHeaderResponse, MemberGroupResponse,UserResponse
+from app.schemas.post import PaginatedPostResponse
+from app.schemas.user import UserProfileHeaderResponse, MemberGroupResponse,UserResponse, UserWithdrawRequest
 from typing import List
-from app.crud import crud_user
+from app.crud import crud_post, crud_user
+from app.services import user_service
 
 router = APIRouter()
 
 
-@router.delete("/me", summary="앱 탈퇴 처리")
-def withdraw_user(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # 1. 현재 세션(db)에서 다시 조회하여 세션과 연결 (Attached Object)
-    user = db.query(User).filter(User.id == current_user.id).first()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="유저를 찾을 수 없습니다.")
-        
-    # 2. 상태 변경
-    user.is_deleted = True
-    
-    # 3. 커밋
-    db.commit()
-    db.refresh(user) # 변경사항 반영 확인
-    
-    return {"message": "성공적으로 탈퇴 처리되었습니다."}
+# ==========================================
+# [MY_005] 내가 쓴 게시물 조회
+# ==========================================
+@router.get("/me/posts", response_model=PaginatedPostResponse, summary="내가 쓴 게시물 조회")
+def get_my_posts_api(
+    skip: int = Query(0, description="건너뛸 아이템 수 (offset)"),
+    limit: int = Query(20, description="가져올 아이템 수 (최대 20개씩)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    total_count, posts = crud_post.get_posts_by_user(db, current_user.id, skip, limit)
+    return {"total_count": total_count, "posts": posts}
+
+
+# ==========================================
+# [MY_006] 좋아요 누른 게시물 조회
+# ==========================================
+@router.get("/me/likes", response_model=PaginatedPostResponse, summary="좋아요 누른 게시물 조회")
+def get_my_liked_posts_api(
+    skip: int = Query(0, description="건너뛸 아이템 수 (offset)"),
+    limit: int = Query(20, description="가져올 아이템 수 (최대 20개씩)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    total_count, posts = crud_post.get_liked_posts_by_user(db, current_user.id, skip, limit)
+    return {"total_count": total_count, "posts": posts}
+
+
+
+# ==========================================
+# [MY_007] 기능 : 회원탈퇴 처리
+# ==========================================
+@router.delete("/me", summary="앱 탈퇴 처리 (비밀번호 검증 포함)")
+def withdraw_user(
+    request: UserWithdrawRequest,
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """
+    사용자 탈퇴 시 유의사항 동의 후, 현재 비밀번호를 입력받아 검증 후 Soft Delete 처리합니다.
+    """
+    return user_service.withdraw_user_account(db, current_user, request.current_password)
 
 
 @router.get("/search", response_model=List[UserResponse], summary="사용자 검색")
