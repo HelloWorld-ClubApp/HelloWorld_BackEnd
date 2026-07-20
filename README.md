@@ -183,7 +183,8 @@ backend/
 │   │   ├── auth_service.py     # 이메일 난수 생성 로직, 인증 시간(10분) 만료 검사
 │   │   ├── chat_service.py     # 채팅방 개설 인원 제한(50명) 검사 로직
 │   │   ├── file_service.py     # 파일 용량(10MB) 검증 및 S3 업로드 로직
-│   │   └── post_service.py     # 작성 권한 확인, 조회수 처리 로직
+│   │   ├── post_service.py     # 작성 권한 확인, 조회수 처리 로직
+│   │   └── user_service.py     # 마이페이지 및 사용자 개인정보(비밀번호 검증, 탈퇴) 비즈니스 로직
 │   │
 │   └── utils/                  # 프로젝트 전역에서 쓰이는 유틸리티 함수
 │       ├── email_sender.py     # SMTP 메일 발송 함수
