@@ -11,6 +11,8 @@ from app.schemas.user import UserProfileHeaderResponse, MemberGroupResponse,User
 from typing import List
 from app.crud import crud_post, crud_user
 from app.services import user_service
+from typing import Literal, Optional
+from fastapi import UploadFile, File, Form
 
 router = APIRouter()
 
@@ -95,3 +97,37 @@ def get_club_members(
 ):
     # 이제 리스트 안에 학년별로 묶인 객체들이 반환됩니다.
     return crud_user.get_club_members_grouped(db=db, see_all=see_all)
+
+# ==========================================
+# [MY_001] 프로필 수정 API (상태 및 이미지 변경)
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+@router.put("/me/profile", summary="[MY_001] 프로필 수정")
+def update_my_profile(
+    # JSON이 아니라 파일과 글자를 같이 보내야 해서(Form-Data), Form()을 씁니다!
+    status: Literal["재학", "졸업", "취업"] = Form(
+        ..., 
+        description="학적 상태 (재학, 졸업, 취업 중 택 1)"
+    ),
+    profile_image: Optional[UploadFile] = File(
+        None, 
+        description="변경할 프로필 이미지 (10MB 이하, jpg/png)"
+    ),
+    db: Session = Depends(get_db), # DB 연결선 챙기기
+    current_user = Depends(get_current_user) # 현재 접속 중인(로그인한) 사용자 확인
+):
+    """
+    사용자의 학적 상태와 프로필 이미지를 수정합니다.
+    - 규칙에 어긋나는 이미지 업로드 시 400 에러를 반환합니다.
+    - 성공 시 {"message": "변경이 완료되었습니다"} 를 반환합니다.
+    """
+    # 1. 아까 만든 user_service에게 받은 재료 넘기기!
+    result = user_service.update_profile_service(
+        db=db,
+        current_user=current_user,
+        status_in=status,
+        profile_image=profile_image
+    )
+    
+    # 2. 무사히 끝났으면 프론트엔드에게 성공 메시지 반환!
+    return result
