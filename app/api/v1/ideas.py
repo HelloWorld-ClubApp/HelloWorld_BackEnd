@@ -1,3 +1,8 @@
+# ==========================================
+# [MY_003] 아이디어 노트 게시판 API 라우터 (생성, 조회, 삭제)
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -18,13 +23,17 @@ def create_user_idea(
     """아이디어 노트 작성"""
     return crud_idea.create_idea(db=db, idea=idea, user_id=current_user.id)
 
+# 수정된 코드 (skip, limit 추가 및 CRUD로 전달)
 @router.get("/", response_model=List[IdeaResponse])
 def read_user_ideas(
+    skip: int = 0,    #  프론트에서 "몇 개 건너뛸지" 받는 구멍 뚫기
+    limit: int = 10,  #  프론트에서 "몇 개 가져올지" 받는 구멍 뚫기
     db: Session = Depends(get_db), 
     current_user = Depends(get_current_user)
 ):
     """아이디어 노트 목록 조회 (최신순)"""
-    return crud_idea.get_ideas(db=db, user_id=current_user.id)
+    #  방금 수정한 CRUD 창고로 skip, limit 값까지 시원하게 던져주기!
+    return crud_idea.get_ideas(db=db, user_id=current_user.id, skip=skip, limit=limit)
 
 @router.delete("/{idea_id}")
 def delete_user_idea(
