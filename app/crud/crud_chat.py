@@ -196,3 +196,26 @@ def toggle_chat_room_pin(db: Session, room_id: int, user_id: int):
     db.refresh(participant) # 변경사항 반영 확인
     
     return participant
+
+# ==========================================
+# [MY_002] 채팅방 클라우드 파일 목록 조회
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+def get_chat_room_files(db: Session, room_id: int):
+    # 파일 모델을 가져옵니다. (파일 상단에 임포트가 없을 수도 있으니 안전하게 여기에 추가!)
+    from app.models.file import File
+    
+    # 1. File 테이블과 Message 테이블을 조인(Join)
+    # 2. 현재 방(room_id)에 해당하는 메시지만 필터링
+    # 3. Message에 file_id가 있는(NULL이 아닌) 데이터만 가져오기
+    # 4. 파일 등록일(created_at) 기준 내림차순(최신순) 정렬
+    files = db.query(File).join(
+        Message, Message.file_id == File.id
+    ).filter(
+        Message.room_id == room_id,
+        Message.file_id.isnot(None) 
+    ).order_by(
+        File.created_at.desc()
+    ).all()
+    
+    return files
