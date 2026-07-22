@@ -1,6 +1,6 @@
 # FastAPI 애플리케이션 진입점 (설정 로드, 라우터 등록)
 # 작성자 : 엄인섭
-from app.api.v1 import comments
+from app.api.v1 import comments, ideas
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -16,7 +16,7 @@ from app.models.chat import ChatRoom, Message # (ChatParticipant는 chat.py 안�
 from app.models.contest import Host, Category, Contest, ContestCategory
 from app.models.post import Post, PostFile, PostReadLog, Like, Comment
 from app.models.schedule import Schedule, Idea
-
+from app.api.v1 import auth, home, schedules, posts, users, likes, chats, files
 
 # ==========================================
 # 라우터(API) 임포트
@@ -86,3 +86,5 @@ app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(likes.router, prefix="/api/v1/posts", tags=["Likes"])
 app.include_router(chats.router, prefix="/api/v1/chats", tags=["Chats"])
 app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
+# [MY_003] 아이디어 노트 게시판 라우터 추가 (작성자: 천석훈, 김세연, 문호성, 강기민)
+app.include_router(ideas.router, prefix="/api/v1/ideas", tags=["Ideas"])
