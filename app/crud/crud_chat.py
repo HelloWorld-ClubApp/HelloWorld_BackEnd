@@ -46,26 +46,28 @@ def get_user_rooms(db: Session, user_id: int):
         ).all()
     
     results = []
-    for room in rooms:
-        # 2. 마지막 메시지 가져오기 (room.messages와 relationship이 연결되어 있어 바로 조회 가능)
-        last_msg = db.query(Message).filter(Message.room_id == room.id).order_by(Message.created_at.desc()).first()
+    # [버그 수정] rooms는 튜플(묶음) 형태이므로 [0]번째 인덱스에서 ChatRoom 객체를 꺼내야 함!
+    for room_data in rooms:
+        chat_room = room_data[0] 
+        
+        # 2. 마지막 메시지 가져오기
+        last_msg = db.query(Message).filter(Message.room_id == chat_room.id).order_by(Message.created_at.desc()).first()
         
         # 3. 해당 채팅방에서 '나'만 안 읽은 메시지 수 카운트
-        # MessageReadStatus 모델과 Message를 조인하여 필터링
         unread_count = db.query(MessageReadStatus).join(Message).filter(
-            Message.room_id == room.id,       # 이 방의 메시지 중
-            MessageReadStatus.user_id == user_id, # 내가
-            MessageReadStatus.is_read == False    # 안 읽은 것
+            Message.room_id == chat_room.id,      
+            MessageReadStatus.user_id == user_id, 
+            MessageReadStatus.is_read == False    
         ).count()
         
-        # 4. 데이터 가공 (스키마 정의와 일치시켜야 함)
+        # 4. 데이터 가공
         results.append({
-            "id": room.id,
-            "title": room.title,
+            "id": chat_room.id,
+            "title": chat_room.title,
             "last_message": last_msg.content if last_msg else "대화 내용이 없습니다.",
-            "last_message_time": last_msg.created_at if last_msg else room.created_at,
+            "last_message_time": last_msg.created_at if last_msg else chat_room.created_at,
             "unread_count": unread_count,
-            "created_at": room.created_at
+            "created_at": chat_room.created_at
         })
     return results
 
