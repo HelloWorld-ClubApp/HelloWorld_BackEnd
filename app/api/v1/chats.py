@@ -11,6 +11,8 @@ from app.crud import crud_chat
 from app.models.user import User
 from app.utils.ws_manager import manager
 from app.core.database import SessionLocal
+from app.schemas.chat import ChatCloudFileResponse
+from app.services import chat_service
 
 router = APIRouter()
 
@@ -190,3 +192,28 @@ def toggle_pin(
         )
         
     return {"message": "고정 상태가 변경되었습니다.", "is_pinned": result.is_pinned}
+
+# ==========================================
+# [MY_002] 채팅방 이미지 및 파일 클라우드 조회
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+@router.get("/{room_id}/files", response_model=List[ChatCloudFileResponse], summary="채팅방 클라우드 파일 목록 조회")
+def get_chat_files(
+    room_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    특정 채팅방에서 공유된 모든 파일(이미지, 동영상 등)을 최신순으로 조회합니다.
+    - 서버 보관 기간(30일) 만료 여부(is_expired)를 함께 반환합니다.
+    """
+    # 1. 방어 로직: 해당 채팅방의 진짜 참여자가 맞는지 검증 (보안)
+    is_participant = crud_chat.is_participant(db, room_id, current_user.id)
+    if not is_participant:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="해당 채팅방의 파일에 접근할 권한이 없습니다."
+        )
+    
+    # 2. 비즈니스 로직(chat_service) 호출하여 데이터 반환
+    return chat_service.get_chat_cloud_files_service(db=db, room_id=room_id)

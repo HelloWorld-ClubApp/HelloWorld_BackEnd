@@ -34,3 +34,19 @@ class MessageResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+# ==========================================
+# [MY_002] 채팅방 이미지 및 파일 클라우드 응답 스키마
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+class ChatCloudFileResponse(BaseModel):
+    file_id: int = Field(..., description="파일 고유번호")
+    file_url: str = Field(..., description="파일의 URL")
+    file_type: str = Field(..., description="파일의 형식 (확장자)")
+    file_size: int = Field(..., description="파일의 크기 (바이트 단위)")
+    original_name: str = Field(..., description="파일의 원래 이름")
+    created_at: datetime = Field(..., description="파일이 업로드된 날짜 및 시간")
+    is_expired: bool = Field(..., description="30일 보관 기간 만료 여부 (True면 다운로드 제한)")
+    
+    class Config:
+        from_attributes = True

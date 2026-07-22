@@ -1,7 +1,7 @@
 # 작성자 : 엄인섭
 import re
 from pydantic import BaseModel, EmailStr, Field, model_validator
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 # 회원가입 입력 형식(8~20자 제한, 이메일 정규식 등)
 class UserCreate(BaseModel):
@@ -115,3 +115,14 @@ class MemberGroupResponse(BaseModel):
 # ==========================================
 class UserWithdrawRequest(BaseModel):
     current_password: str = Field(..., description="본인 확인용 현재 비밀번호")
+
+# ==========================================
+# [MY_001] 프로필 수정 요청 스키마
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+class UserProfileUpdate(BaseModel):
+    # Literal을 사용하면 "재학", "졸업", "취업" 외의 단어가 들어오면 Pydantic이 알아서 422 에러로 컷해버림!
+    status: Literal["재학", "졸업", "취업"] = Field(
+        ..., 
+        description="학적 상태 (재학, 졸업, 취업 중 택 1)"
+    )

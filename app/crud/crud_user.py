@@ -109,3 +109,24 @@ def soft_delete_user(db: Session, user_id: int):
         # 민감 정보 마스킹이 필요하다면 여기서 추가 처리 가능
         db.commit()
     return user
+
+# ==========================================
+# [MY_001] 프로필 수정 (학적 상태 및 이미지 업데이트)
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+def update_user_profile(db: Session, user_id: int, status_in: str, file_id: int = None):
+    """
+    사용자의 학적 상태(status)와 프로필 이미지(file_id)를 업데이트합니다.
+    새로운 이미지가 업로드되어 file_id가 전달된 경우에만 프로필 이미지를 갱신합니다.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.status = status_in
+        
+        # 파일이 새로 업로드된 경우에만 file_id 업데이트
+        if file_id is not None:
+            user.file_id = file_id
+            
+        db.commit()
+        db.refresh(user)
+    return user

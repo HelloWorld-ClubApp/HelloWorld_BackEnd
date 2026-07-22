@@ -46,26 +46,28 @@ def get_user_rooms(db: Session, user_id: int):
         ).all()
     
     results = []
-    for room in rooms:
-        # 2. 마지막 메시지 가져오기 (room.messages와 relationship이 연결되어 있어 바로 조회 가능)
-        last_msg = db.query(Message).filter(Message.room_id == room.id).order_by(Message.created_at.desc()).first()
+    # [버그 수정] rooms는 튜플(묶음) 형태이므로 [0]번째 인덱스에서 ChatRoom 객체를 꺼내야 함!
+    for room_data in rooms:
+        chat_room = room_data[0] 
+        
+        # 2. 마지막 메시지 가져오기
+        last_msg = db.query(Message).filter(Message.room_id == chat_room.id).order_by(Message.created_at.desc()).first()
         
         # 3. 해당 채팅방에서 '나'만 안 읽은 메시지 수 카운트
-        # MessageReadStatus 모델과 Message를 조인하여 필터링
         unread_count = db.query(MessageReadStatus).join(Message).filter(
-            Message.room_id == room.id,       # 이 방의 메시지 중
-            MessageReadStatus.user_id == user_id, # 내가
-            MessageReadStatus.is_read == False    # 안 읽은 것
+            Message.room_id == chat_room.id,      
+            MessageReadStatus.user_id == user_id, 
+            MessageReadStatus.is_read == False    
         ).count()
         
-        # 4. 데이터 가공 (스키마 정의와 일치시켜야 함)
+        # 4. 데이터 가공
         results.append({
-            "id": room.id,
-            "title": room.title,
+            "id": chat_room.id,
+            "title": chat_room.title,
             "last_message": last_msg.content if last_msg else "대화 내용이 없습니다.",
-            "last_message_time": last_msg.created_at if last_msg else room.created_at,
+            "last_message_time": last_msg.created_at if last_msg else chat_room.created_at,
             "unread_count": unread_count,
-            "created_at": room.created_at
+            "created_at": chat_room.created_at
         })
     return results
 
@@ -196,3 +198,26 @@ def toggle_chat_room_pin(db: Session, room_id: int, user_id: int):
     db.refresh(participant) # 변경사항 반영 확인
     
     return participant
+
+# ==========================================
+# [MY_002] 채팅방 클라우드 파일 목록 조회
+# 작성자 : 천석훈, 김세연, 문호성, 강기민
+# ==========================================
+def get_chat_room_files(db: Session, room_id: int):
+    # 파일 모델을 가져옵니다. (파일 상단에 임포트가 없을 수도 있으니 안전하게 여기에 추가!)
+    from app.models.file import File
+    
+    # 1. File 테이블과 Message 테이블을 조인(Join)
+    # 2. 현재 방(room_id)에 해당하는 메시지만 필터링
+    # 3. Message에 file_id가 있는(NULL이 아닌) 데이터만 가져오기
+    # 4. 파일 등록일(created_at) 기준 내림차순(최신순) 정렬
+    files = db.query(File).join(
+        Message, Message.file_id == File.id
+    ).filter(
+        Message.room_id == room_id,
+        Message.file_id.isnot(None) 
+    ).order_by(
+        File.created_at.desc()
+    ).all()
+    
+    return files
