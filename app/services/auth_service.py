@@ -75,13 +75,18 @@ async def request_password_reset(db: Session, email: str):
         db.add(verif)
     db.commit()
     
+    # 이메일 발송 유틸리티 호출 (결과만 받아옴)
     success = await send_email(email, "비밀번호 재설정 인증번호", f"인증번호: {code}")
     
-    # 2. 결과가 False라면 API에서 에러 발생시키기
+    # 결과가 False라면 API에서 에러 발생시키기
     if not success:
         raise HTTPException(status_code=500, detail="이메일 발송 서버에 문제가 발생했습니다. 잠시 후 다시 시도해주세요.")
     
-    return {"message": "인증번호를 보냈습니다."}
+    # [아키텍트 수정]: 프론트엔드 분기 처리를 위한 고유 식별 코드(AUTH_EMAIL_SENT) 추가
+    return {
+        "status": 200,
+        "code": "AUTH_EMAIL_SENT"
+    }
 
 # 2단계: 인증번호 확인
 def verify_code(db: Session, email: str, code: str):
@@ -89,13 +94,10 @@ def verify_code(db: Session, email: str, code: str):
     
      # user가 None인지 확인
     if not user:
-    # 데이터가 없을 때의 처리 (에러를 띄우거나, None을 반환)
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
     
     verif = db.query(EmailVerification).filter(EmailVerification.user_id == user.id).first()
 
-    
-    
     if not verif or verif.verification_code != code:
         raise HTTPException(status_code=400, detail="잘못된 인증번호입니다.")
     if verif.expires_at < datetime.now(timezone.utc):
@@ -103,15 +105,21 @@ def verify_code(db: Session, email: str, code: str):
     
     verif.is_verified = True # 인증 성공 상태 저장
     db.commit()
-    return {"message": "인증되었습니다."}
+    
+    # [아키텍트 수정]: 프론트엔드 분기 처리를 위한 고유 식별 코드(AUTH_VERIFIED_SUCCESS) 추가
+    return {
+        "status": 200,
+        "code": "AUTH_VERIFIED_SUCCESS", 
+    }
 
 # 3단계: 비밀번호 변경
 def reset_password(db: Session, email: str, new_password: str):
     user = db.query(User).filter(User.email == email).first()
+    
     # user가 None인지 확인
     if not user:
-    # 데이터가 없을 때의 처리 (에러를 띄우거나, None을 반환)
         raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+        
     verif = db.query(EmailVerification).filter(EmailVerification.user_id == user.id).first()
     
     if not verif or not verif.is_verified:
@@ -120,4 +128,9 @@ def reset_password(db: Session, email: str, new_password: str):
     user.password_hash = get_password_hash(new_password)
     db.delete(verif) # 인증 완료 후 데이터 삭제
     db.commit()
-    return {"message": "비밀번호가 변경되었습니다."}
+    
+    # [아키텍트 수정]: 프론트엔드 분기 처리를 위한 고유 식별 코드(AUTH_PASSWORD_RESET_SUCCESS) 추가
+    return {
+        "status": 200,
+        "code": "AUTH_PASSWORD_RESET_SUCCESS"
+    }
