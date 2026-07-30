@@ -109,10 +109,10 @@ def update_notice_post(db: Session, post_id: int, post_data: dict):
     db_post = db.query(Post).filter(Post.id == post_id).first()
 
     if db_post:
-        db_post.category = post_data.post_type
-        db_post.title = post_data.title
-        db_post.content = post_data.content
-        db_post.schedule_date = post_data.schedule_date
+        db_post.category = post_data.get("post_type", db_post.category)
+        db_post.title = post_data.get("title", db_post.title)
+        db_post.content = post_data.get("content", db_post.content)
+        db_post.schedule_date = post_data.get("schedule_date", db_post.schedule_date)
         db.commit()
         db.refresh(db_post)
 

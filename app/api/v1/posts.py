@@ -10,6 +10,9 @@ from app.api.dependencies import get_current_user
 
 router = APIRouter()
 
+# 임원진 및 관리자 권한 ID 목록 (2: 관리자, 3: 회장, 4: 부회장, 5: 총무)
+NOTICE_ALLOWED_ROLE_IDS = [2, 3, 4, 5]
+
 @router.get("/latest", response_model=List[PostPreviewResponse])
 def get_latest_posts(db: Session = Depends(get_db)):
     posts_with_roles = crud_post.get_latest_posts(db)
@@ -50,74 +53,110 @@ def get_notice_list_api(db: Session = Depends(get_db)):
     # 2. 1단계에서 만든 데이터 규격(NoticeListResponse)에 맞춰서 딕셔너리로 포장 후 배달!
     return {"notices": notices_data}
 
-#=============================
+# =============================
 # Post_001 공지사항 및 자유게시판 작성, 수정, 삭제 API
+# =============================
 @router.post("/", summary="게시글 작성 (공지/일반)")
 def create_post_api(
     post_in: PostCreate,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user) # 현재 로그인한 사용자의 신분증(정보)
+    current_user: Any = Depends(get_current_user)  # 현재 로그인한 사용자의 신분증(정보)
 ):
     """
     [Post_001] 게시글 작성 API
     - 스키마(PostCreate)를 통해 빈칸, 과거 날짜 여부는 이미 자동 필터링 되었습니다.
-    - 공지사항일 경우, 직책이 [회장, 부회장, 총무]인지 최종 권한 검사를 수행합니다.
+    - 공지사항일 경우, 직책이 [2: 관리자, 3: 회장, 4: 부회장, 5: 총무]인지 최종 권한 검사를 수행합니다.
     """
-    # 1. 권한 검사: 작성하려는 글이 '공지사항'일 때만 신분증 확인
+    # 1. 권한 검사: 작성하려는 글이 '공지'일 때 role_id(숫자) 기반으로 확인
     if post_in.post_type == "공지":
-        allowed_roles = ["회장", "부회장", "총무"]
-        # (주의: current_user.role 이름은 실제 User 모델 구조에 맞춰 변경해야 할 수 있음.)
-        if current_user.role not in allowed_roles:
+        # 주석: DB User 모델의 실제 속성명인 role_id 로 접근하여 검사
+        if getattr(current_user, "role_id", None) not in NOTICE_ALLOWED_ROLE_IDS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="공지를 작성할 권한이 없습니다."
+                detail="공지를 작성할 권한이 없습니다. (임원진 또는 관리자만 작성 가능)"
             )
-            
+
     # 2. 모든 검사를 통과했으니 CRUD 창고 지시서로 데이터 전달
     new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
     return {"message": "게시글이 성공적으로 작성되었습니다.", "data": new_post}
 
 
-@router.put("/{post_id}", summary="공지 게시글 수정")
+@router.put("/{post_id}", summary="게시글 수정 (공지/일반)")
 def update_notice_api(
     post_id: int,
     post_in: PostCreate,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
+    current_user: Any = Depends(get_current_user)  # 현재 로그인한 사용자의 신분증(정보)
 ):
-    """[Post_001] 게시글 수정 API"""
-    if post_in.post_type == "공지":
-        allowed_roles = ["회장", "부회장", "총무"]
-        if current_user.role not in allowed_roles:
+    """
+    [Post_001] 게시글 수정 API
+    - 공지사항 수정 시 임원진/관리자 권한(role_id)을 검사합니다.
+    - 일반 게시글 수정 시 작성자 본인 또는 관리자인지 검사합니다.
+    """
+    # 1. 대상 게시글 존재 여부 사전 확인 (DB에서 먼저 조회)
+    db_post = crud_post.get_post_by_id(db=db, post_id=post_id)
+    if not db_post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 게시글을 찾을 수 없습니다."
+        )
+
+    # 2. 권한 검사: 공지사항인 경우 임원진 또는 관리자만 수정 가능
+    if post_in.post_type == "공지" or db_post.category == "공지":
+        if getattr(current_user, "role_id", None) not in NOTICE_ALLOWED_ROLE_IDS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="공지를 수정할 권한이 없습니다."
             )
-            
-    updated_post = crud_post.update_notice_post(db=db, post_id=post_id, post_data=post_in)
-    if not updated_post:
-        raise HTTPException(status_code=404, detail="해당 게시글을 찾을 수 없습니다.")
+    else:
+        # 3. 일반 게시글인 경우 작성자 본인 또는 관리자(role_id=2)만 수정 가능하도록 검열
+        if db_post.user_id != current_user.id and getattr(current_user, "role_id", None) != 2:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="본인이 작성한 게시글만 수정할 수 있습니다."
+            )
+
+    # 4. 검증 완료 후 수정 수행
+    updated_post = crud_post.update_notice_post(db=db, post_id=post_id, post_data=post_in.model_dump(exclude_unset=True))
     return {"message": "게시글이 성공적으로 수정되었습니다.", "data": updated_post}
 
 
-@router.delete("/{post_id}", summary="공지 게시글 삭제")
+@router.delete("/{post_id}", summary="게시글 삭제 (공지/일반)")
 def delete_notice_api(
     post_id: int,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
+    current_user: Any = Depends(get_current_user)  # 현재 로그인한 사용자의 신분증(정보)
 ):
-    """[Post_001] 게시글 삭제 API"""
-    # 삭제 역시 최고 관리자 직책만 가능하도록 통제
-    allowed_roles = ["회장", "부회장", "총무"]
-    if current_user.role not in allowed_roles:
+    """
+    [Post_001] 게시글 삭제 API
+    - 공지사항 삭제 시 임원진/관리자 권한(role_id)을 검사합니다.
+    - 일반 게시글 삭제 시 작성자 본인 또는 관리자인지 검사합니다.
+    """
+    # 1. 대상 게시글 존재 여부 사전 확인
+    db_post = crud_post.get_post_by_id(db=db, post_id=post_id)
+    if not db_post:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="공지를 삭제할 권한이 없습니다."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 게시글을 찾을 수 없습니다."
         )
-        
-    deleted_post = crud_post.delete_notice_post(db=db, post_id=post_id)
-    if not deleted_post:
-        raise HTTPException(status_code=404, detail="해당 게시글을 찾을 수 없습니다.")
+
+    # 2. 권한 검사: 공지사항 삭제는 임원진 및 관리자만 가능
+    if db_post.category == "공지":
+        if getattr(current_user, "role_id", None) not in NOTICE_ALLOWED_ROLE_IDS:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="공지를 삭제할 권한이 없습니다."
+            )
+    else:
+        # 3. 일반 게시글 삭제는 작성자 본인 또는 관리자(role_id=2)만 가능
+        if db_post.user_id != current_user.id and getattr(current_user, "role_id", None) != 2:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="본인이 작성한 게시글만 삭제할 수 있습니다."
+            )
+
+    # 4. 검증 완료 후 삭제 수행
+    crud_post.delete_notice_post(db=db, post_id=post_id)
     return {"message": "게시글이 성공적으로 삭제되었습니다."}
 
 #=============================
