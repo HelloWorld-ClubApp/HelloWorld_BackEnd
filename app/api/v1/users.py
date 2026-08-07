@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.api.dependencies import get_current_user # 토큰 검증 의존성
 from app.models.user import User
-from app.models.file import File # DB 설계상의 files 테이블
+from app.models.file import File as FileModel
 from app.schemas.post import PaginatedPostResponse
 from app.schemas.user import UserProfileHeaderResponse, MemberGroupResponse,UserResponse, UserWithdrawRequest
 from typing import List
@@ -78,7 +78,7 @@ def get_my_header_profile(
     
     # 1. 유저에게 등록된 프로필 사진 파일(file_id)이 있는지 확인
     if current_user.file_id:
-        file_record = db.query(File).filter(File.id == current_user.file_id).first()
+        file_record = db.query(FileModel).filter(FileModel.id == current_user.file_id).first()
         if file_record:
             profile_image_url = file_record.file_url
 

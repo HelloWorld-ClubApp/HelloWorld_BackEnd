@@ -97,3 +97,10 @@ DB 참조 데이터 부재: URL 경로를 정상적으로 수정한 후에도 �
 * **원인**: 포스트맨을 통한 API 테스트 과정에서 HTTP 프로토콜의 표준 Authorization 헤더 규칙을 위반함. JSON 응답 객체에 있는 토큰 값을 복사할 때 불필요한 쌍따옴표(") 기호를 포함하여 복사했거나, 헤더 전달 시 인증 타입인 Bearer 문자열과 실제 토큰 값 사이에 필수적으로 요구되는 공백(Space) 문자가 누락되어 서버의 인증 미들웨어가 토큰을 정상적으로 파싱하지 못함.
 
 * **해결**: 포스트맨의 Authorization 탭에서 인증 타입을 Bearer Token으로 명확히 지정함. 토큰 입력란에는 쌍따옴표 등 불필요한 문자를 완벽히 제거한 '순수 JWT 문자열(Payload)'만을 기입하여, 서버 측으로 전송될 때 Authorization: Bearer <토큰값> 형태의 표준 규격 헤더로 결합되도록 조치함으로써 인증 인가 문제를 해결함.
+
+
+### 15. FastAPI File 파라미터와 SQLAlchemy File ORM 모델 간의 네임스페이스 충돌
+
+* **현상**: 사용자 마이페이지(`api/v1/users.py`) 등에서 사진 업로드 API 호출 시, 프론트엔드로부터 멀티파트 폼 데이터(이미지)가 정상 수신되지 않거나 DB 쿼리 실행 시 `TypeError`가 발생함[cite: 11].
+* **원인**: `app.models.file.File`과 `fastapi.File`이 동일한 식별자(`File`)를 사용하여 모듈 내에서 나중에 임포트된 객체가 이전 객체를 섀도잉(Shadowing)함[cite: 11].
+* **해결**: ORM 모델 임포트 시 `from app.models.file import File as FileModel` 문법을 사용하여 DB 테이블 클래스를 `FileModel`로 명확히 분리하고, `File(...)`은 FastAPI 매개변수 마커 전용으로 유지함[cite: 11].
