@@ -7,54 +7,61 @@ from app.models.post import Post # 공지사항 모델
 from app.models.user import User
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate
 
-def get_calendar_events(db: Session, year: int, month: int, current_user_id: int):
-    """특정 연/월의 개인 일정 및 전체 공지사항을 통합 조회합니다."""
-    # 1. 개인 일정 (Schedule) - 본인 소유만 가져옴
+def get_calendar_events(
+    db: Session,
+    year: int,
+    month: int,
+    current_user_id: int
+):
+    """특정 연/월의 개인 일정 및 공지사항 일정을 통합 조회"""
+
+    # 개인 일정
     schedules = (
         db.query(Schedule)
-        .filter(Schedule.user_id == current_user_id) 
+        .filter(Schedule.user_id == current_user_id)
         .filter(extract('year', Schedule.start_date) == year)
         .filter(extract('month', Schedule.start_date) == month)
         .all()
     )
-    
-    # 2. 전체 일정/공지사항 (Post)
+
+    # 공지사항 중 일정이 선택된 데이터만 조회
     notices = (
         db.query(Post)
-        .filter(Post.category == '공지') 
-        .filter(extract('year', Post.created_at) == year)
-        .filter(extract('month', Post.created_at) == month)
+        .filter(Post.category == "공지")
+        .filter(Post.schedule_date.isnot(None))
+        .filter(extract('year', Post.schedule_date) == year)
+        .filter(extract('month', Post.schedule_date) == month)
         .all()
     )
-    
+
     results = []
-    
-    # 개인 일정 리스트 매핑 (에러 수정: s.sid -> s.id)
+
+    # PERSONAL 매핑
     for s in schedules:
         results.append({
-            "id": s.id, 
+            "id": s.id,
             "title": s.title,
             "content": s.content,
             "start_date": s.start_date,
             "end_date": s.end_date,
-            "category": "PERSONAL", 
-            "color": s.color, 
+            "category": "PERSONAL",
+            "color": s.color,
             "author_id": s.user_id
         })
-        
-    # 공지사항 리스트 매핑
+
+    # NOTICE 매핑
     for p in notices:
         results.append({
             "id": p.id,
             "title": p.title,
             "content": p.content,
-            "start_date": p.created_at,
-            "end_date": p.created_at,
+            "start_date": p.schedule_date,
+            "end_date": p.schedule_date,
             "category": "NOTICE",
-            "color": "#FF0000", # 전체 일정(공지)은 빨간색으로 고정 표시
+            "color": "#FF0000",
             "author_id": p.user_id
         })
-        
+
     return results
 
 def get_daily_schedules(db: Session, target_date: date, current_user_id: int):
