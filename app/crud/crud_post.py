@@ -7,6 +7,7 @@ from app.models.user import User , Role
 from sqlalchemy.orm import Session
 from app.models.file import File
 from app.schemas.post import PostCreate
+from app.core.enum.post import PostCategory
 
 def get_latest_posts(db: Session, limit: int = 3):
     return (
@@ -14,7 +15,7 @@ def get_latest_posts(db: Session, limit: int = 3):
         .join(User, Post.user_id == User.id)
         .join(Role, User.role_id == Role.id)
         .order_by(
-            case((Post.category == '공지', 0), else_=1), # 공지 우선순위
+            case((Post.category == PostCategory.NOTICE.value, 0), else_=1), # 공지 우선순위
             Post.created_at.desc()                      # 최신순
         )
         .limit(limit)
@@ -23,11 +24,12 @@ def get_latest_posts(db: Session, limit: int = 3):
 
 
 
+"""
 def get_club_feed(db: Session, limit: int = 4):
-    """
+    
     이미지가 포함된 최신 게시글 4개를 가져옵니다.
     게시글에 이미지가 여러 개일 경우, 가장 먼저 등록된 이미지(대표 이미지) 1개만 추출합니다.
-    """
+    
     # 1. 파일이 존재하는 게시글을 최신순으로 모두 조인해서 가져옴
     query = (
         db.query(Post.id, Post.title, Post.created_at, File.file_url)
@@ -63,6 +65,8 @@ def get_club_feed(db: Session, limit: int = 4):
             break
             
     return result
+    """
+    
 #작성자 : 천석훈 , 김세연, 문호성
 #=============================
 def get_notice_list(db: Session, limit: int = 10):
@@ -75,7 +79,7 @@ def get_notice_list(db: Session, limit: int = 10):
     """
     return (
         db.query(Post)
-        .filter(Post.category == '공지')
+        .filter(Post.category == PostCategory.NOTICE.value)
         .order_by(Post.created_at.desc())
         .limit(limit)
         .all()
@@ -143,7 +147,7 @@ def get_free_posts(db: Session, page: int = 1, limit: int = 10):
     offset = (page - 1) * limit
     return (
         db.query(Post)
-        .filter(Post.category == '일반')
+        .filter(Post.category == PostCategory.FREE.value)
         .order_by(Post.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -152,7 +156,7 @@ def get_free_posts(db: Session, page: int = 1, limit: int = 10):
 
 #=============================
 # Post_002 자유게시판 추가, 수정, 삭제 및 제한 확인
-def get_user_post_count(db: Session, user_id: int, category: str = "일반"):
+def get_user_post_count(db: Session, user_id: int, category: str = PostCategory.FREE.value):
     """[Post_002] 해당 유저의 특정 카테고리 게시글 작성 개수 조회"""
     return db.query(Post).filter(Post.user_id == user_id, Post.category == category).count()
 
@@ -192,7 +196,7 @@ def get_question_posts(db: Session, page: int = 1, limit: int = 10):
     offset = (page - 1) * limit
     return (
         db.query(Post)
-        .filter(Post.category == '질문')
+        .filter(Post.category == PostCategory.QUESTION.value)
         .order_by(Post.created_at.desc())
         .offset(offset)
         .limit(limit)

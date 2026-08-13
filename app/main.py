@@ -16,12 +16,10 @@ from app.models.chat import ChatRoom, Message # (ChatParticipant는 chat.py 안�
 from app.models.contest import Host, Category, Contest, ContestCategory
 from app.models.post import Post, PostFile, PostReadLog, Like, Comment
 from app.models.schedule import Schedule, Idea
-from app.api.v1 import auth, home, schedules, posts, users, likes, chats, files
-
 # ==========================================
 # 라우터(API) 임포트
 # ==========================================
-from app.api.v1 import auth, home, schedules, posts, users, likes, chats, files
+from app.api.v1 import auth, home, schedules, posts, users, likes, chats, files, feed
 
 def init_seed_data():
     """서버 시작 시 필수 기초 데이터(Seed Data)를 DB에 넣는 함수"""
@@ -88,3 +86,4 @@ app.include_router(chats.router, prefix="/api/v1/chats", tags=["Chats"])
 app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
 # [MY_003] 아이디어 노트 게시판 라우터 추가 (작성자: 천석훈, 김세연, 문호성, 강기민)
 app.include_router(ideas.router, prefix="/api/v1/ideas", tags=["Ideas"])
+app.include_router(feed.router, prefix="/api/v1/feed", tags=["Feed"])
