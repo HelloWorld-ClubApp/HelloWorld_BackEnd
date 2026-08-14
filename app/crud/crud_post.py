@@ -196,7 +196,7 @@ def get_question_posts(db: Session, page: int = 1, limit: int = 10):
     offset = (page - 1) * limit
     return (
         db.query(Post)
-        .filter(Post.category == PostCategory.QUESTION.value)
+        .filter(Post.category == PostCategory.QNA.value)
         .order_by(Post.created_at.desc())
         .offset(offset)
         .limit(limit)
