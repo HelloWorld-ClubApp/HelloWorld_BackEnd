@@ -1,13 +1,14 @@
 # 게시글 조회, 페이징 로직
 # 작성자 : 엄인섭
 from sqlalchemy.orm import Session
-from sqlalchemy import case, desc
-from app.models.post import Like, Post,PostFile
+from sqlalchemy import case, desc, func
+from app.models.post import Like, Post
 from app.models.user import User , Role
 from sqlalchemy.orm import Session
-from app.models.file import File
+
 from app.schemas.post import PostCreate
 from app.core.enum.post import PostCategory
+from app.models.post import Comment
 
 def get_latest_posts(db: Session, limit: int = 3):
     return (
@@ -281,3 +282,46 @@ def get_liked_posts_by_user(db: Session, user_id: int, skip: int = 0, limit: int
         .all()
     )
     return total_count, posts
+
+
+# ==========================================
+# [Post_L_004] 전체 게시판 통합 목록 조회
+# ==========================================
+def get_all_posts(db: Session, page: int = 1, limit: int = 10):
+    """
+    공지, 자유, 질문 게시판을 통합하여 최신순으로 페이징 조회합니다.
+    - 프론트엔드의 3중 호출 병목을 해결하기 위한 단일 쿼리입니다.
+    """
+    offset = (page - 1) * limit
+    return (
+        db.query(Post)
+        .order_by(Post.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+# ==========================================
+# [Post_D_001] 게시글 상세 조회 (좋아요/댓글 Join 최적화)
+# ==========================================
+def get_post_detail_with_relations(db: Session, post_id: int):
+    """
+    단일 게시글과 해당 게시글에 달린 좋아요 수, 댓글 목록을 한 번의 쿼리로 가져옵니다.
+    - 성능 병목(N+1)을 방지하기 위한 아키텍처 최적화 쿼리입니다.
+    """
+    post = db.query(Post).filter(Post.id == post_id).first()
+    
+    if not post:
+        return None
+        
+    # 좋아요 개수 집계 (Count)
+    like_count = db.query(func.count(Like.id)).filter(Like.post_id == post_id).scalar()
+    
+    # 댓글 목록 조회 (최신순)
+    comments = db.query(Comment).filter(Comment.post_id == post_id).order_by(Comment.created_at.desc()).all()
+    
+    return {
+        "post": post,
+        "like_count": like_count,
+        "comments": comments
+    }

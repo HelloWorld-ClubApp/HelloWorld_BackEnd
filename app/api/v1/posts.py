@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.core.database import get_db # 또는 세션 의존성 주입 경로
-from app.schemas.post import PostPreviewResponse, NoticeListResponse, PostCreate, FreePostListResponse,QuestionPostListResponse
+from app.schemas.post import PostPreviewResponse, NoticeListResponse, PostCreate, FreePostListResponse,QuestionPostListResponse, PostDetailResponse
 from app.crud import crud_post
 from app.api.dependencies import get_current_user
 
@@ -315,3 +315,47 @@ def delete_question_post_api(
         
     crud_post.delete_question_post(db=db, post_id=post_id)
     return {"message": "질문 게시글이 성공적으로 삭제되었습니다."}
+
+# app/api/v1/posts.py
+# (기존 import 유지)
+
+# =============================
+# [새 기능] 전체 게시판 목록 통합 조회 API
+# =============================
+@router.get("/all", summary="전체 게시글 통합 조회")
+def get_all_post_list(page: int = 1, db: Session = Depends(get_db)):
+    """
+    공지, 자유, 질문 등 모든 카테고리의 게시글을 한 번에 최신순으로 반환합니다.
+    - 프론트엔드의 호출 횟수를 3회에서 1회로 단축시킵니다.
+    """
+    posts_data = crud_post.get_all_posts(db=db, page=page, limit=10)
+    
+    if not posts_data:
+        return {"message": "등록된 게시글이 없습니다.", "posts": []}
+        
+    return {"posts": posts_data}
+
+# =============================
+# [새 기능] 게시글 상세 조회 API (Join 포함)
+# =============================
+@router.get("/{post_id}/detail", response_model=PostDetailResponse, summary="게시글 상세 조회 (좋아요/댓글 포함)")
+def get_post_detail_api(post_id: int, db: Session = Depends(get_db)):
+    """
+    게시글 본문, 좋아요 개수, 댓글 목록을 한 번의 통신으로 응답합니다.
+    - 프론트엔드의 렌더링 성능을 극대화하고 네트워크 병목을 해소합니다.
+    """
+    result = crud_post.get_post_detail_with_relations(db=db, post_id=post_id)
+    
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="해당 게시글을 찾을 수 없습니다."
+        )
+        
+    return {
+        "data": {
+            "post_info": result["post"],
+            "total_likes": result["like_count"],
+            "comments": result["comments"]
+        }
+    }

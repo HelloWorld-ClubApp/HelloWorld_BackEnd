@@ -167,3 +167,48 @@ class PostListResponse(BaseModel):
 class PaginatedPostResponse(BaseModel):
     total_count: int = Field(..., description="전체 게시글 수 (무한 스크롤 기준점)")
     posts: List[PostListResponse] = Field(..., description="게시글 목록 (최대 20개)")
+
+
+# ==========================================
+# [Post_D_001] 게시글 상세 조회용 응답 스키마
+# 작성자: 엄인섭
+# 목적: 게시글 본문, 좋아요 수, 댓글 목록을 한 번에 반환하기 위한 엄격한 타입 규격 정의
+# ==========================================
+from typing import List, Optional
+from datetime import datetime
+from pydantic import BaseModel, Field
+
+class CommentResponse(BaseModel):
+    """댓글 단건을 담는 응답 뼈대"""
+    id: int = Field(..., description="댓글 고유 번호")
+    user_id: int = Field(..., description="작성자 고유 번호")
+    content: str = Field(..., description="댓글 내용")
+    created_at: datetime = Field(..., description="댓글 작성 시간")
+    updated_at: datetime = Field(..., description="댓글 수정 시간")
+
+    class Config:
+        # [Pylance 최적화]: SQLAlchemy ORM 모델을 자동으로 Pydantic 딕셔너리로 읽을 수 있게 허용[cite: 10]
+        from_attributes = True
+
+class PostDetailInfo(BaseModel):
+    """게시글 본문 상세 정보 뼈대"""
+    id: int = Field(..., description="게시글 고유 번호")
+    user_id: int = Field(..., description="작성자 고유 번호")
+    category: str = Field(..., description="게시판 카테고리 (NOTICE, FREE, QUESTION 등)")
+    title: str = Field(..., description="게시글 제목")
+    content: str = Field(..., description="게시글 내용")
+    schedule_date: Optional[datetime] = Field(None, description="일정 선택 날짜 (선택 사항)")
+    created_at: datetime = Field(..., description="게시글 작성 시간")
+
+    class Config:
+        from_attributes = True
+
+class PostDetailData(BaseModel):
+    """게시글 상세 정보와 연관 데이터(좋아요, 댓글)를 하나로 묶는 데이터 영역"""
+    post_info: PostDetailInfo = Field(..., description="게시글 본문 상세 정보")
+    total_likes: int = Field(..., description="해당 게시글이 받은 총 좋아요 개수")
+    comments: List[CommentResponse] = Field(default_factory=list, description="게시글에 달린 댓글 목록 (최신순)")
+
+class PostDetailResponse(BaseModel):
+    """프론트엔드로 최종 반환되는 게시글 상세 API 응답 뼈대"""
+    data: PostDetailData = Field(..., description="조회된 상세 데이터")
