@@ -2,13 +2,15 @@
 # 작성자 : 천석훈, 김세연, 문호성
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
-from typing import List  # 👈 [추가됨] 댓글 '목록(여러 개)'을 반환하기 위해 필요해!
 
 # 동아리 프로젝트 구조에 맞춘 의존성 주입 (경로 확인 필수!)
 from app.api.dependencies import get_db, get_current_user 
 from app.schemas.comment import CommentCreate, CommentResponse
-from app.services.comment_service import comment_service
+from app.services.comment_service import CommentService
 from app.models.user import User
+from app.schemas.comment import CommentUpdate
+
+comment_service = CommentService()
 
 router = APIRouter(
     tags=["Comments"]
@@ -56,14 +58,33 @@ def delete_comment(
     )
 
 
-@router.get("/post/{post_id}", response_model=List[CommentResponse], status_code=status.HTTP_200_OK)
-def get_comments(
-    post_id: int,
-    db: Session = Depends(get_db)
+# ======================================================================
+# 2. app/api/v1/comments.py (댓글 라우터)
+# ======================================================================
+
+
+# [이슈 4 해결] 댓글 수정 API 라우터 신설
+@router.put("/{comment_id}", status_code=status.HTTP_200_OK, summary="댓글 수정")
+def update_comment_api(
+    comment_id: int,
+    comment_in: CommentUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
-    [Comment_001] 특정 게시글에 달린 모든 댓글 목록을 조회합니다.
-    - 권한: 누구나 볼 수 있음 (Depends(get_current_user) 없음)
-    - 정렬: 작성 시간 기준 오름차순 (먼저 쓴 댓글이 위에 표시됨)
+    작성자 본인의 댓글 내용을 수정. (Service 계층으로 위임)
+    """
+    updated_comment = comment_service.update_comment(
+        db=db, comment_id=comment_id, user_id=current_user.id, comment_in=comment_in
+    )
+    return {"message": "댓글이 성공적으로 수정되었습니다.", "data": updated_comment}
+
+# [이슈 3 해결] 불필요한 단독 댓글 조회 API 사용 중지(Deprecated)[cite: 18]
+@router.get("/post/{post_id}", deprecated=True, summary="[Deprecated] 댓글 단독 조회")
+def get_comments(post_id: int, db: Session = Depends(get_db)):
+    """
+    게시글 상세 조회(/{post_id}/detail) API에 이미 댓글 목록 조인이 포함되어 있으므로,
+    프론트엔드의 혼선을 막기 위해 해당 API는 Deprecated 처리
     """
     return comment_service.get_post_comments(db=db, post_id=post_id)
+

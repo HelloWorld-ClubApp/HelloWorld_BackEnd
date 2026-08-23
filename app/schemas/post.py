@@ -1,7 +1,7 @@
 # 작성자 : 엄인섭
 # 게시글 작성 폼, 페이징 응답 폼
 from typing import List, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 from datetime import datetime, datetime as dt
 
 class PostPreviewResponse(BaseModel):
@@ -40,30 +40,59 @@ class NoticeListResponse(BaseModel):
     notices: List[NoticeResponse] = Field(..., description="최신순으로 정렬된 공지 리스트 (데이터가 없으면 빈 배열 [] 반환)")
 
 #===============================
-# Post_001 공지사항 및 게시글 작성 폼 (유효성 검사 포함)
+# Post_001 공지사항 및 게시글 작성 폼 (유효성 검사 및 일정 모순 방지 포함) -> 수정자 : 엄인섭
+
 class PostCreate(BaseModel):
-    """게시글 생성 시 프론트엔드로부터 전달받는 데이터 뼈대"""
-    post_type: str = Field(..., description="게시글 타입 (예: 공지, 일반)")
+    """
+    [이슈 5, 6, 8 통합 반영] 게시글 생성 요청 DTO
+    - 다중 파일 ID 배열(file_ids) 수신
+    - 시작/종료 날짜의 논리적 모순 및 타임존 비교 정합성 보장
+    """
+    post_type: str = Field(..., description="게시글 타입 (예: 공지, 일반, 질문)")
     title: str = Field(..., description="게시글 제목")
     content: str = Field(..., description="게시글 내용")
-    image_url: Optional[str] = Field(None, description="첨부 이미지 URL (선택사항)")
-    schedule_date: Optional[datetime] = Field(None, description="일정 선택 (선택 사항, 과거 날짜 불가)")
+    
+    # [이슈 5번 해결] 단일 이미지 URL 대신 다중 파일 고유번호 목록 수신
+    file_ids: List[int] = Field(default=[], description="첨부할 파일/사진 고유 ID 목록")
+    
+    # [이슈 8번 해결] 일정 시작일 및 마감일
+    start_date: Optional[datetime] = Field(None, description="일정 시작 날짜 및 시간")
+    end_date: Optional[datetime] = Field(None, description="일정 종료 날짜 및 시간")
 
     @field_validator('post_type', 'title', 'content')
     @classmethod
     def check_not_empty(cls, value):
-        """필수 항목 누락 방지 로직"""
+        """필수 항목 누락 및 공백 입력 방지"""
         if not value or not value.strip():
-            raise ValueError("필수 항목을 입력하세요")
+            raise ValueError("필수 항목을 입력하세요.")
         return value
-   
-    @field_validator('schedule_date')
-    @classmethod
-    def check_schedule_date(cls, value):
-        """과거 날짜 입력 방지 로직"""
-        if value is not None and value < dt.now():
-            raise ValueError("현재시간보다 이전의 날짜는 선택할 수 없습니다")
-        return value
+
+    @model_validator(mode='after')
+    def validate_schedule_dates(self) -> 'PostCreate':
+        """
+        [이슈 8번 핵심 해결] 일정 날짜 모순 방지 및 타임존 비교 정합성 검증 로직
+        - 1. 시작 날짜는 지정했는데 종료 날짜가 누락된 경우 -> 모순 에러
+        - 2. 종료 날짜만 덜렁 들어온 경우 -> 모순 에러
+        - 3. 종료 날짜가 시작 날짜보다 과거인 경우 -> 시간 역전 에러
+        - 4. offset-naive / aware 비교 에러를 방지하기 위해 start_date의 tzinfo 반영
+        """
+        if self.start_date and not self.end_date:
+            raise ValueError("일정의 시작 날짜가 있으면 종료 날짜도 반드시 입력해야 합니다.")
+        
+        if self.end_date and not self.start_date:
+            raise ValueError("일정의 종료 날짜가 있으면 시작 날짜도 반드시 입력해야 합니다.")
+            
+        if self.start_date and self.end_date:
+            # 타임존 일치화 (Offset-naive / aware 비교 에러 원천 차단)
+            current_time = dt.now(self.start_date.tzinfo) if self.start_date.tzinfo else dt.now()
+            
+            if self.start_date < current_time:
+                raise ValueError("시작 날짜는 현재 시간보다 이전일 수 없습니다.")
+            if self.end_date < self.start_date:
+                raise ValueError("종료 날짜는 시작 날짜보다 빠를 수 없습니다.")
+                
+        return self
+    
 # ===============================
 # Post_L_002 자유게시판 전용
 class FreePostResponse(BaseModel):
@@ -155,11 +184,15 @@ class QuestionPostUpdate(BaseModel):
 # [MY_005, MY_006] 마이페이지 게시물 목록 응답 스키마
 # 작성자 : 엄인섭
 # ==========================================
+# [리팩토링]: 게시글 목록/상세 응답 시 Aggregate(집계) 데이터와 좋아요 여부 포함
 class PostListResponse(BaseModel):
     id: int = Field(..., description="게시글 고유번호")
     category: str = Field(..., description="게시판 카테고리")
     title: str = Field(..., description="게시글 제목")
     created_at: datetime = Field(..., description="게시글 작성 일시")
+    like_count: int = Field(0, description="총 좋아요 수")
+    comment_count: int = Field(0, description="총 댓글 수")
+    is_liked: bool = Field(False, description="현재 로그인한 사용자의 좋아요 여부")
 
     class Config:
         from_attributes = True
@@ -212,3 +245,12 @@ class PostDetailData(BaseModel):
 class PostDetailResponse(BaseModel):
     """프론트엔드로 최종 반환되는 게시글 상세 API 응답 뼈대"""
     data: PostDetailData = Field(..., description="조회된 상세 데이터")
+
+
+# app/schemas/comment.py
+class CommentUpdate(BaseModel):
+    """[이슈 4] 댓글 수정을 위한 요청 데이터 스키마"""
+    content: str = Field(..., description="수정할 댓글 내용")
+
+    class Config:
+        json_schema_extra = {"example": {"content": "수정된 댓글 내용입니다."}}

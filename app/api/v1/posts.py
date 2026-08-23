@@ -4,9 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.core.database import get_db # 또는 세션 의존성 주입 경로
-from app.schemas.post import PostPreviewResponse, NoticeListResponse, PostCreate, FreePostListResponse,QuestionPostListResponse, PostDetailResponse
+from app.schemas.post import PostPreviewResponse, NoticeListResponse, PostCreate, FreePostListResponse,QuestionPostListResponse, PostDetailResponse, PaginatedPostResponse
 from app.crud import crud_post
 from app.api.dependencies import get_current_user
+from app.schemas.post import PostCreate
+from app.models.user import User
 
 router = APIRouter()
 
@@ -39,6 +41,44 @@ def get_club_feed(db: Session = Depends(get_db)):
    
     return crud_post.get_club_feed(db=db, limit=4)
 """
+
+
+# [이슈 7 해결] 게시글 수정 API 단일화 (공지/일반/질문 통합)
+# 기존에 있던 update_notice_api, update_free_post_api, update_question_post_api 삭제함.
+@router.put("/{post_id}", summary="게시글 통합 수정 (공지/일반/질문)")
+def update_integrated_post_api(
+    post_id: int,
+    post_in: PostCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    게시글 수정 API를 하나로 통합하여 유지보수성을 극대화합니다.
+    - DB에 저장된 기존 category를 기준으로 권한(임원진 vs 일반)을 분기 처리합니다.
+    """
+    db_post = crud_post.get_post_by_id(db=db, post_id=post_id)
+    if not db_post:
+        raise HTTPException(status_code=404, detail="해당 게시글을 찾을 수 없습니다.")
+
+    # 1. 권한 분기: 공지사항일 경우 임원진(role_id: 2~5) 검증
+    if db_post.category == "NOTICE":
+        if getattr(current_user, "role_id", None) not in NOTICE_ALLOWED_ROLE_IDS:
+            raise HTTPException(status_code=403, detail="공지를 수정할 권한이 없습니다.")
+    # 2. 권한 분기: 일반/질문일 경우 본인 또는 최고관리자(role_id: 2) 검증
+    else:
+        if db_post.user_id != current_user.id and getattr(current_user, "role_id", None) != 2:
+            raise HTTPException(status_code=403, detail="본인이 작성한 게시글만 수정할 수 있습니다.")
+
+    # 3. 통합 업데이트 수행
+    db_post.title = post_in.title
+    db_post.content = post_in.content
+    if post_in.schedule_date:
+        db_post.schedule_date = post_in.schedule_date
+        
+    db.commit()
+    db.refresh(db_post)
+    return {"message": "게시글이 성공적으로 수정되었습니다.", "data": db_post}
+
 
 #작성자 : 천석훈 , 김세연, 문호성
 #=============================
@@ -82,45 +122,6 @@ def create_post_api(
     new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
     return {"message": "게시글이 성공적으로 작성되었습니다.", "data": new_post}
 
-
-@router.put("/{post_id}", summary="게시글 수정 (공지/일반)")
-def update_notice_api(
-    post_id: int,
-    post_in: PostCreate,
-    db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)  # 현재 로그인한 사용자의 신분증(정보)
-):
-    """
-    [Post_001] 게시글 수정 API
-    - 공지사항 수정 시 임원진/관리자 권한(role_id)을 검사합니다.
-    - 일반 게시글 수정 시 작성자 본인 또는 관리자인지 검사합니다.
-    """
-    # 1. 대상 게시글 존재 여부 사전 확인 (DB에서 먼저 조회)
-    db_post = crud_post.get_post_by_id(db=db, post_id=post_id)
-    if not db_post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="해당 게시글을 찾을 수 없습니다."
-        )
-
-    # 2. 권한 검사: 공지사항인 경우 임원진 또는 관리자만 수정 가능
-    if post_in.post_type == "공지" or db_post.category == "공지":
-        if getattr(current_user, "role_id", None) not in NOTICE_ALLOWED_ROLE_IDS:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="공지를 수정할 권한이 없습니다."
-            )
-    else:
-        # 3. 일반 게시글인 경우 작성자 본인 또는 관리자(role_id=2)만 수정 가능하도록 검열
-        if db_post.user_id != current_user.id and getattr(current_user, "role_id", None) != 2:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="본인이 작성한 게시글만 수정할 수 있습니다."
-            )
-
-    # 4. 검증 완료 후 수정 수행
-    updated_post = crud_post.update_notice_post(db=db, post_id=post_id, post_data=post_in.model_dump(exclude_unset=True))
-    return {"message": "게시글이 성공적으로 수정되었습니다.", "data": updated_post}
 
 
 @router.delete("/{post_id}", summary="게시글 삭제 (공지/일반)")
@@ -196,23 +197,6 @@ def create_free_post_api(
     new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
     return {"message": "게시글이 작성되었습니다.", "data": new_post}
 
-@router.put("/free/{post_id}", summary="일반 게시글 수정")
-def update_free_post_api(
-    post_id: int,
-    post_in: PostCreate,
-    db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
-):
-    post = crud_post.get_post_by_id(db, post_id)
-    if not post or post.category != "일반":
-        raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
-    
-    # 권한 체크: 본인만 수정 가능
-    if post.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="본인이 작성한 게시글만 수정 가능합니다.")
-        
-    updated_post = crud_post.update_free_post(db=db, post_id=post_id, post_data=post_in.dict())
-    return {"message": "수정되었습니다.", "data": updated_post}
 
 @router.delete("/free/{post_id}", summary="일반 게시글 삭제")
 def delete_free_post_api(
@@ -279,24 +263,6 @@ def create_question_post_api(
     new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
     return {"message": "질문 게시글이 성공적으로 작성되었습니다.", "data": new_post}
 
-@router.put("/question/{post_id}", summary="질문게시판 게시글 수정")
-def update_question_post_api(
-    post_id: int,
-    post_in: PostCreate, 
-    db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
-):
-    """[Post_003] 질문게시판 수정 (본인만 가능)"""
-    post = crud_post.get_post_by_id(db, post_id)
-    if not post or post.category != "질문":
-        raise HTTPException(status_code=404, detail="해당 질문 게시글을 찾을 수 없습니다.")
-    
-    # 권한 체크: 본인만 수정 가능
-    if post.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="본인이 작성한 질문 게시글만 수정 가능합니다.")
-        
-    updated_post = crud_post.update_question_post(db=db, post_id=post_id, post_data=post_in.dict())
-    return {"message": "질문 게시글이 수정되었습니다.", "data": updated_post}
 
 @router.delete("/question/{post_id}", summary="질문게시판 게시글 삭제")
 def delete_question_post_api(
@@ -316,24 +282,33 @@ def delete_question_post_api(
     crud_post.delete_question_post(db=db, post_id=post_id)
     return {"message": "질문 게시글이 성공적으로 삭제되었습니다."}
 
-# app/api/v1/posts.py
-# (기존 import 유지)
 
 # =============================
-# [새 기능] 전체 게시판 목록 통합 조회 API
+# [새 기능] 전체 게시판 목록 통합 조회 API (N+1 최적화 적용)
 # =============================
 @router.get("/all", summary="전체 게시글 통합 조회")
-def get_all_post_list(page: int = 1, db: Session = Depends(get_db)):
+def get_all_post_list(
+    page: int = 1, 
+    db: Session = Depends(get_db),
+    # [수정사항]: is_liked(좋아요 여부) 판별을 위해 로그인 유저 정보가 반드시 필요
+    current_user: User = Depends(get_current_user) 
+):
     """
     공지, 자유, 질문 등 모든 카테고리의 게시글을 한 번에 최신순으로 반환합니다.
-    - 프론트엔드의 호출 횟수를 3회에서 1회로 단축시킵니다.
+    - 프론트엔드의 호출 횟수를 단축시키고, 좋아요 수 및 댓글 수를 단일 쿼리로 집계합니다.
     """
-    posts_data = crud_post.get_all_posts(db=db, page=page, limit=10)
+    # [수정사항]: 기존 get_all_posts 대신 get_all_posts_optimized 호출 및 current_user_id 전달
+    posts_data = crud_post.get_all_posts_optimized(
+        db=db, 
+        current_user_id=current_user.id, 
+        page=page, 
+        limit=10
+    )
     
     if not posts_data:
-        return {"message": "등록된 게시글이 없습니다.", "posts": []}
+        return {"total_count": 0, "posts": []}
         
-    return {"posts": posts_data}
+    return {"total_count": len(posts_data), "posts": posts_data}
 
 # =============================
 # [새 기능] 게시글 상세 조회 API (Join 포함)

@@ -2,7 +2,8 @@
 # 작성자 : 천석훈, 김세연, 문호성
 from sqlalchemy.orm import Session
 from app.models.post import Comment
-from app.schemas.comment import CommentCreate
+from app.schemas.comment import CommentCreate, CommentUpdate
+from fastapi import HTTPException, status
 
 class CRUDComment:
     def create_comment(self, db: Session, *, obj_in: CommentCreate, user_id: int, post_id: int) -> Comment:
@@ -42,5 +43,32 @@ class CRUDComment:
         """
         return db.query(Comment).filter(Comment.post_id == post_id).order_by(Comment.created_at.asc()).all()
 
+
+    def update_comment(self, db: Session, comment_id: int, user_id: int, comment_in: CommentUpdate):
+        """
+        [이슈 4 해결] 댓글 수정 비즈니스 로직
+        - 작성자 본인 여부를 엄격히 검증하고, 검증 통과 시 내용을 덮어씌움
+        """
+        # 1. 대상 댓글 존재 여부 확인
+        comment = comment_crud.get_comment(db=db, comment_id=comment_id)
+        if not comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, 
+                detail="해당 댓글을 찾을 수 없습니다."
+            )
+
+        # 2. 권한 검증: 요청자(user_id)와 댓글 작성자가 일치하는지 확인
+        if comment.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, 
+                detail="댓글을 수정할 권한이 없습니다."
+            )
+
+        # 3. 데이터 갱신 및 DB 커밋
+        comment.content = comment_in.content
+        db.commit()
+        db.refresh(comment)
+        
+        return comment
 # 다른 파일(Service, Router)에서 쉽게 가져다 쓸 수 있도록 객체 생성
 comment_crud = CRUDComment()

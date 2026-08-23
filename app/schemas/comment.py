@@ -46,3 +46,11 @@ class CommentResponse(CommentBase):
         # SQLAlchemy ORM 객체를 Pydantic 모델로 변환하기 위한 설정
         from_attributes = True 
         orm_mode = True # Pydantic V1 하위 호환
+
+
+class CommentUpdate(BaseModel):
+    """[이슈 4 해결] 댓글 수정을 위한 요청 데이터 뼈대"""
+    content: str = Field(..., description="수정할 댓글 내용")
+
+    class Config:
+        json_schema_extra = {"example": {"content": "수정된 댓글 내용입니다."}}

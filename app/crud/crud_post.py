@@ -2,7 +2,7 @@
 # 작성자 : 엄인섭
 from sqlalchemy.orm import Session
 from sqlalchemy import case, desc, func
-from app.models.post import Like, Post
+from app.models.post import Post, PostFile, Like, Comment
 from app.models.user import User , Role
 from sqlalchemy.orm import Session
 
@@ -87,21 +87,32 @@ def get_notice_list(db: Session, limit: int = 10):
     )
 
 #=============================
-# Post_001 공지사항 및 자유게시판 작성, 수정, 삭제 기능
+# Post_001 공지사항 및 자유게시판 작성, 수정, 삭제 기능 --> 수정자 : 엄인섭
 def create_post(db: Session, post_data: PostCreate, user_id: int):
     """
-    [Post_001] 게시글(공지사항, 자유게시판) 추가
-    - 앞서 스키마(PostCreate)에서 1차 검열(빈칸, 과거 날짜 방지)을 마친 꺠끗한 데이터를 DB에 적재.
-    - 게시글 작성 후 get_notice_list를 호출하면 정상적으로 목록에 띄워집니다.
+    [이슈 5, 8 해결] 게시글 생성 및 다중 파일 매핑, 일정 데이터 적재
     """
+    # 1. 게시글 본문 데이터 생성 (시작일, 종료일 포함)
     db_post = Post(
-        category=post_data.post_type, # 프론트에서 받은 게시글 타입(공지사항 등)을 DB 카테고리에 매핑
+        category=post_data.post_type,
         title=post_data.title,
         content=post_data.content,
-        schedule_date=post_data.schedule_date,
-        user_id=user_id # 글을 작성한 사람의 고유 ID의 기록
+        start_date=post_data.start_date,
+        end_date=post_data.end_date,
+        user_id=user_id
     )
     db.add(db_post)
+    db.flush() # post.id를 즉시 추출하기 위해 flush 실행 (commit 아님)
+
+    # 2. [이슈 5번 해결] 다중 파일 ID가 존재할 경우 post_files 매핑 테이블에 일괄 등록
+    if post_data.file_ids:
+        for file_id in post_data.file_ids:
+            db_post_file = PostFile(
+                post_id=db_post.id,
+                file_id=file_id
+            )
+            db.add(db_post_file)
+
     db.commit()
     db.refresh(db_post)
     return db_post
@@ -325,3 +336,48 @@ def get_post_detail_with_relations(db: Session, post_id: int):
         "like_count": like_count,
         "comments": comments
     }
+
+
+#============================================================
+# 작성자 : 엄인섭
+#============================================================
+
+def get_all_posts_optimized(db: Session, current_user_id: int, page: int = 1, limit: int = 10):
+    """
+    [이슈 1, 2 해결] 전체 게시판 통합 목록 조회 (성능 최적화 버전)
+    - Outer Join과 Group By를 사용하여 like_count, comment_count를 단일 쿼리로 추출.
+    - case 문을 활용하여 현재 사용자가 좋아요를 눌렀는지(is_liked) 판별.
+    """
+    offset = (page - 1) * limit
+    
+    # 1. 서브쿼리를 통한 Aggregate 및 Boolean 판단
+    query = (
+        db.query(
+            Post,
+            func.count(Like.id.distinct()).label("like_count"),
+            func.count(Comment.id.distinct()).label("comment_count"),
+            func.max(case((Like.user_id == current_user_id, 1), else_=0)).label("is_liked")
+        )
+        .outerjoin(Like, Post.id == Like.post_id)
+        .outerjoin(Comment, Post.id == Comment.post_id)
+        .group_by(Post.id)
+        .order_by(Post.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    
+    # 2. Pydantic 스키마에 맞게 딕셔너리로 매핑하여 반환
+    result = []
+    for post, like_count, comment_count, is_liked_int in query:
+        result.append({
+            "id": post.id,
+            "category": post.category,
+            "title": post.title,
+            "created_at": post.created_at,
+            "like_count": like_count,
+            "comment_count": comment_count,
+            "is_liked": bool(is_liked_int)
+        })
+        
+    return result

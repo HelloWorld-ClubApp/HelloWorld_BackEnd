@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 
 from app.crud.crud_comment import comment_crud
 from app.crud.crud_post import post_crud 
-from app.schemas.comment import CommentCreate
+from app.schemas.comment import CommentCreate, CommentUpdate
 from app.models.post import Comment
 
 class CommentService:
@@ -73,5 +73,26 @@ class CommentService:
             
         # 2. 안전하게 해당 게시글의 댓글 목록 쓸어오기!
         return comment_crud.get_comments_by_post(db=db, post_id=post_id)
+
+    def update_comment(self, db: Session, comment_id: int, user_id: int, comment_in: CommentUpdate):
+        """
+        [이슈 4 해결] 댓글 수정 비즈니스 로직
+        - 작성자 본인 여부를 검증하고 내용을 덮어씌웁니다.
+        """
+        # 1. 댓글 존재 여부 확인
+        comment = comment_crud.get_comment(db=db, comment_id=comment_id)
+        if not comment:
+            raise HTTPException(status_code=404, detail="해당 댓글을 찾을 수 없습니다.")
+
+        # 2. 권한 검증 (작성자 본인만 수정 가능)
+        if comment.user_id != user_id:
+            raise HTTPException(status_code=403, detail="댓글을 수정할 권한이 없습니다.")
+
+        # 3. 데이터 갱신
+        comment.content = comment_in.content
+        db.commit()
+        db.refresh(comment)
+        
+        return comment
 
 comment_service = CommentService()
