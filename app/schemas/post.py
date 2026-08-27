@@ -10,6 +10,7 @@ class PostPreviewResponse(BaseModel):
     category: str = Field(..., description="게시판 카테고리 (예: 공지, 일반, 질문)")
     author_role: str = Field(..., description="작성자 역할 (예: 회장, 부회장, 일반)")
     created_at: datetime = Field(..., description="게시글 생성(작성) 날짜 및 시간")
+    comment_count: int = Field(0, description="댓글 수")
 
 """
 class ClubFeedResponse(BaseModel):
@@ -100,6 +101,8 @@ class FreePostResponse(BaseModel):
     id: int
     title: str
     created_at: datetime
+    like_count: int = Field(0, description="좋아요 수")
+    comment_count: int = Field(0, description="댓글 수")
 
     class Config:
         from_attributes = True
@@ -143,6 +146,8 @@ class QuestionPostResponse(BaseModel):
     id: int
     title: str
     created_at: datetime
+    like_count: int = Field(0, description="좋아요 수")
+    comment_count: int = Field(0, description="댓글 수")
 
     class Config:
         from_attributes = True
@@ -192,7 +197,6 @@ class PostListResponse(BaseModel):
     created_at: datetime = Field(..., description="게시글 작성 일시")
     like_count: int = Field(0, description="총 좋아요 수")
     comment_count: int = Field(0, description="총 댓글 수")
-    is_liked: bool = Field(False, description="현재 로그인한 사용자의 좋아요 여부")
 
     class Config:
         from_attributes = True
@@ -215,31 +219,49 @@ class CommentResponse(BaseModel):
     """댓글 단건을 담는 응답 뼈대"""
     id: int = Field(..., description="댓글 고유 번호")
     user_id: int = Field(..., description="작성자 고유 번호")
+    author_name: str = Field(..., description="댓글 작성자 이름")
     content: str = Field(..., description="댓글 내용")
     created_at: datetime = Field(..., description="댓글 작성 시간")
     updated_at: datetime = Field(..., description="댓글 수정 시간")
 
     class Config:
-        # [Pylance 최적화]: SQLAlchemy ORM 모델을 자동으로 Pydantic 딕셔너리로 읽을 수 있게 허용[cite: 10]
+        # [Pylance 최적화]: SQLAlchemy ORM 모델을 자동으로 Pydantic 딕셔너리로 읽을 수 있게 허용
         from_attributes = True
 
 class PostDetailInfo(BaseModel):
     """게시글 본문 상세 정보 뼈대"""
     id: int = Field(..., description="게시글 고유 번호")
     user_id: int = Field(..., description="작성자 고유 번호")
+    author_name: str = Field(..., description="작성자 이름")
     category: str = Field(..., description="게시판 카테고리 (NOTICE, FREE, QUESTION 등)")
     title: str = Field(..., description="게시글 제목")
     content: str = Field(..., description="게시글 내용")
-    schedule_date: Optional[datetime] = Field(None, description="일정 선택 날짜 (선택 사항)")
+    start_date: Optional[datetime] = Field(None, description="일정 시작 날짜")
+    end_date: Optional[datetime] = Field(None, description="일정 종료 날짜")
     created_at: datetime = Field(..., description="게시글 작성 시간")
 
     class Config:
         from_attributes = True
 
+class FileAttachmentResponse(BaseModel):
+    """게시글에 첨부된 파일 단건 응답 뼈대"""
+    id: int = Field(..., description="파일 고유 번호")
+    file_url: str = Field(..., description="파일 접근 URL")
+    file_type: str = Field(..., description="파일 MIME 타입 (예: image/jpeg, application/pdf)")
+    file_size: int = Field(..., description="파일 크기 (Byte)")
+    original_name: str = Field(..., description="원본 파일명")
+
+    class Config:
+        from_attributes = True
+
 class PostDetailData(BaseModel):
-    """게시글 상세 정보와 연관 데이터(좋아요, 댓글)를 하나로 묶는 데이터 영역"""
+    """게시글 상세 정보와 연관 데이터(좋아요, 댓글, 첨부파일)를 하나로 묶는 데이터 영역"""
     post_info: PostDetailInfo = Field(..., description="게시글 본문 상세 정보")
     total_likes: int = Field(..., description="해당 게시글이 받은 총 좋아요 개수")
+    is_liked: bool = Field(False, description="현재 로그인한 사용자의 좋아요 여부")
+    is_author: bool = Field(False, description="현재 로그인한 사용자가 작성자인지 여부")
+    images: List[FileAttachmentResponse] = Field(default_factory=list, description="이미지 첨부파일 목록 (image/* MIME 타입)")
+    attachments: List[FileAttachmentResponse] = Field(default_factory=list, description="일반 첨부파일 목록 (이미지 제외: PDF, DOCX 등)")
     comments: List[CommentResponse] = Field(default_factory=list, description="게시글에 달린 댓글 목록 (최신순)")
 
 class PostDetailResponse(BaseModel):

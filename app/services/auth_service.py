@@ -12,6 +12,7 @@ from app.models.user import EmailVerification # 인증번호 저장용 모델(�
 from datetime import datetime, timedelta, timezone
 from app.core.security import get_password_hash
 from app.models.user import User
+from app.core.enum.user import JoinStatus
 
 
 def register_new_user(db: Session, user_in: UserCreate):
@@ -49,6 +50,18 @@ def authenticate_user(db: Session, student_id: str, password: str):
         
     if not verify_password(password, user.password_hash):
         return False # 비밀번호가 틀림
+
+    if user.join_status == JoinStatus.PENDING.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="가입 승인 대기 중입니다."
+        )
+
+    if user.join_status == JoinStatus.REJECTED.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="가입 신청이 거절되었습니다."
+        )
         
     return user
 

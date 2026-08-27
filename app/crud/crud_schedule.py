@@ -6,6 +6,7 @@ from app.models.schedule import Schedule
 from app.models.post import Post # 공지사항 모델
 from app.models.user import User
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate
+from app.core.enum.post import PostCategory
 
 def get_calendar_events(
     db: Session,
@@ -27,10 +28,10 @@ def get_calendar_events(
     # 공지사항 중 일정이 선택된 데이터만 조회
     notices = (
         db.query(Post)
-        .filter(Post.category == "공지")
-        .filter(Post.schedule_date.isnot(None))
-        .filter(extract('year', Post.schedule_date) == year)
-        .filter(extract('month', Post.schedule_date) == month)
+        .filter(Post.category == PostCategory.NOTICE.value)
+        .filter(Post.start_date.isnot(None), Post.end_date.isnot(None))
+        .filter(extract('year', Post.start_date) == year)
+        .filter(extract('month', Post.start_date) == month)
         .all()
     )
 
@@ -55,8 +56,8 @@ def get_calendar_events(
             "id": p.id,
             "title": p.title,
             "content": p.content,
-            "start_date": p.schedule_date,
-            "end_date": p.schedule_date,
+            "start_date": p.start_date,
+            "end_date": p.end_date,
             "category": "NOTICE",
             "color": "#FF0000",
             "author_id": p.user_id
@@ -77,8 +78,10 @@ def get_daily_schedules(db: Session, target_date: date, current_user_id: int):
     # 2. 해당 일자의 전체 일정(공지사항)
     notices = (
         db.query(Post)
-        .filter(Post.category == '공지')
-        .filter(cast(Post.created_at, Date) == target_date)
+        .filter(Post.category == PostCategory.NOTICE.value)
+        .filter(Post.start_date.isnot(None), Post.end_date.isnot(None))
+        .filter(cast(Post.start_date, Date) <= target_date)
+        .filter(cast(Post.end_date, Date) >= target_date)
         .all()
     )
     
@@ -86,7 +89,7 @@ def get_daily_schedules(db: Session, target_date: date, current_user_id: int):
     for s in schedules:
         results.append({"id": s.id, "title": s.title, "content": s.content if s.content is not None else "", "start_date": s.start_date, "end_date": s.end_date, "category": "PERSONAL", "color": s.color, "author_id": s.user_id})
     for p in notices:
-        results.append({"id": p.id, "title": p.title, "content": p.content if p.content is not None else "", "start_date": p.created_at, "end_date": p.created_at, "category": "NOTICE", "color": "#FF0000", "author_id": p.user_id})
+        results.append({"id": p.id, "title": p.title, "content": p.content if p.content is not None else "", "start_date": p.start_date, "end_date": p.end_date, "category": "NOTICE", "color": "#FF0000", "author_id": p.user_id})
         
     return results
 

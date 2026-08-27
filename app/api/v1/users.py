@@ -3,16 +3,27 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.api.dependencies import get_current_user # 토큰 검증 의존성
+from app.api.dependencies import get_current_join_manager, get_current_user # 토큰 검증 의존성
+from app.models.user import User
 from app.models.user import User
 from app.models.file import File as FileModel
 from app.schemas.post import PaginatedPostResponse
-from app.schemas.user import UserProfileHeaderResponse, MemberGroupResponse,UserResponse, UserWithdrawRequest
+from app.schemas.user import (
+    JoinRequestActionResponse,
+    JoinRequestCountResponse,
+    JoinRequestSummaryResponse,
+    JoinRequestUserResponse,
+    UserProfileHeaderResponse,
+    MemberGroupResponse,
+    UserResponse,
+    UserWithdrawRequest,
+)
 from typing import List
 from app.crud import crud_post, crud_user
 from app.services import user_service
 from typing import Literal, Optional
 from fastapi import UploadFile, File, Form
+from app.core.enum.user import JoinStatus
 
 router = APIRouter()
 
@@ -65,8 +76,74 @@ def withdraw_user(
 def search_users(query: str, db: Session = Depends(get_db)):
     # 쿼리 결과인 User 객체들을 자동으로 UserResponse 모델로 변환하여 반환
     return db.query(User).filter(
+        User.is_deleted == False,
+        User.join_status == JoinStatus.APPROVED.value,
         (User.name.contains(query)) | (User.student_id.contains(query))
     ).all()
+
+
+@router.get(
+    "/join-requests/summary",
+    response_model=JoinRequestSummaryResponse,
+    summary="동아리 가입 신청 관리 요약 조회"
+)
+def get_join_request_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_join_manager)
+):
+    return user_service.get_join_request_summary(db)
+
+
+@router.get(
+    "/join-requests/count",
+    response_model=JoinRequestCountResponse,
+    summary="가입 승인 대기 수 조회"
+)
+def get_join_request_count(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_join_manager)
+):
+    return user_service.get_join_request_count(db)
+
+
+@router.get(
+    "/join-requests",
+    response_model=List[JoinRequestUserResponse],
+    summary="가입 신청 사용자 목록 조회"
+)
+def get_pending_join_requests(
+    skip: int = Query(0, ge=0, description="건너뛸 가입 신청 수"),
+    limit: int = Query(50, ge=1, le=100, description="가져올 가입 신청 수"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_join_manager)
+):
+    return user_service.get_pending_join_requests(db, skip=skip, limit=limit)
+
+
+@router.post(
+    "/join-requests/{user_id}/approve",
+    response_model=JoinRequestActionResponse,
+    summary="가입 신청 승인"
+)
+def approve_join_request(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_join_manager)
+):
+    return user_service.approve_join_request(db, user_id)
+
+
+@router.post(
+    "/join-requests/{user_id}/reject",
+    response_model=JoinRequestActionResponse,
+    summary="가입 신청 거절"
+)
+def reject_join_request(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_join_manager)
+):
+    return user_service.reject_join_request(db, user_id)
 
 
 @router.get("/me/header", response_model=UserProfileHeaderResponse, summary="메인 헤더용 내 프로필 조회")

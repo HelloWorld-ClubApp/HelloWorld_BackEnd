@@ -2,6 +2,7 @@
 import re
 from pydantic import BaseModel, EmailStr, Field, model_validator
 from typing import Optional, List, Literal
+from datetime import datetime
 
 # 회원가입 입력 형식(8~20자 제한, 이메일 정규식 등)
 class UserCreate(BaseModel):
@@ -34,6 +35,7 @@ class UserResponse(BaseModel):
     admission_year: int
     status: str
     is_deleted: bool
+    join_status: str
 
     class Config:
         from_attributes = True
@@ -107,6 +109,29 @@ class MemberGroupResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class JoinRequestSummaryResponse(BaseModel):
+    pending_request_count: int = Field(..., description="가입 승인 대기 신청 수")
+    total_member_count: int = Field(..., description="승인 완료된 총 부원 수")
+
+
+class JoinRequestCountResponse(BaseModel):
+    pending_request_count: int = Field(..., description="가입 승인 대기 신청 수")
+
+
+class JoinRequestUserResponse(BaseModel):
+    id: int = Field(..., description="가입 신청 사용자 ID")
+    name: str = Field(..., description="이름")
+    admission_year: int = Field(..., description="입학년도")
+    requested_at: datetime = Field(..., description="가입 신청 시간")
+
+
+class JoinRequestActionResponse(BaseModel):
+    id: int = Field(..., description="사용자 ID")
+    name: str = Field(..., description="이름")
+    join_status: str = Field(..., description="가입 상태")
+    message: str = Field(..., description="처리 결과 메시지")
 
 
 # ==========================================

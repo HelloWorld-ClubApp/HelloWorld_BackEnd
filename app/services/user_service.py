@@ -7,6 +7,8 @@ from app.models.user import User
 from app.core.security import verify_password
 from fastapi import UploadFile
 from app.services import file_service
+from app.core.enum.user import JoinStatus
+from typing import Optional
 
 def withdraw_user_account(db: Session, current_user: User, password_input: str):
     """
@@ -29,7 +31,7 @@ def withdraw_user_account(db: Session, current_user: User, password_input: str):
 # [MY_001] 프로필 수정 (이미지 검증 및 회원 상태 업데이트)
 # 작성자 : 천석훈, 김세연, 문호성, 강기민
 # ==========================================
-def update_profile_service(db: Session, current_user: User, status_in: str, profile_image: UploadFile = None):
+def update_profile_service(db: Session, current_user: User, status_in: str, profile_image: Optional[UploadFile] = None):
     """
     프론트엔드에서 넘어온 상태값과 이미지를 처리합니다.
     1. 이미지가 있다면 file_service로 10MB / 확장자 검증을 보냅니다.
@@ -53,3 +55,75 @@ def update_profile_service(db: Session, current_user: User, status_in: str, prof
     
     # 3. [요구사항 반영] 프론트엔드에 성공 메시지 반환
     return {"message": "변경이 완료되었습니다"}
+
+
+def get_join_request_summary(db: Session):
+    return {
+        "pending_request_count": crud_user.count_pending_join_requests(db),
+        "total_member_count": crud_user.count_approved_members(db),
+    }
+
+
+def get_join_request_count(db: Session):
+    return {
+        "pending_request_count": crud_user.count_pending_join_requests(db),
+    }
+
+
+def get_pending_join_requests(db: Session, skip: int = 0, limit: int = 50):
+    users = crud_user.get_pending_join_requests(db, skip=skip, limit=limit)
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "admission_year": user.admission_year,
+            "requested_at": user.created_at,
+        }
+        for user in users
+    ]
+
+
+def approve_join_request(db: Session, user_id: int):
+    user = crud_user.get_user_by_id(db, user_id)
+    if not user or user.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="가입 신청 사용자를 찾을 수 없습니다."
+        )
+
+    if user.join_status != JoinStatus.PENDING.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="대기 중인 가입 신청이 아닙니다."
+        )
+
+    approved_user = crud_user.approve_join_request(db, user)
+    return {
+        "id": approved_user.id,
+        "name": approved_user.name,
+        "join_status": approved_user.join_status,
+        "message": "가입 신청을 승인했습니다.",
+    }
+
+
+def reject_join_request(db: Session, user_id: int):
+    user = crud_user.get_user_by_id(db, user_id)
+    if not user or user.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="가입 신청 사용자를 찾을 수 없습니다."
+        )
+
+    if user.join_status != JoinStatus.PENDING.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="대기 중인 가입 신청이 아닙니다."
+        )
+
+    rejected_user = crud_user.reject_join_request(db, user)
+    return {
+        "id": rejected_user.id,
+        "name": rejected_user.name,
+        "join_status": rejected_user.join_status,
+        "message": "가입 신청을 거절했습니다.",
+    }

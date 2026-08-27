@@ -18,33 +18,35 @@ NOTICE_ALLOWED_ROLE_IDS = [2, 3, 4, 5]
 @router.get("/latest", response_model=List[PostPreviewResponse])
 def get_latest_posts(db: Session = Depends(get_db)):
     posts_with_roles = crud_post.get_latest_posts(db)
-    
+
     # 리스트 데이터 가공
     result = []
-    for post, role_name in posts_with_roles:
+    for post, role_name, comment_count in posts_with_roles:
         result.append({
             "id": post.id,
             "title": post.title,
             "category": post.category,
             "author_role": role_name, # 회장/부회장 정보
-            "created_at": post.created_at
+            "created_at": post.created_at,
+            "comment_count": comment_count
         })
     return result
 
 """
 @router.get("/feed", response_model=List[ClubFeedResponse], summary="메인 페이지 CLUB FEED (사진 앨범) 조회")
 def get_club_feed(db: Session = Depends(get_db)):
-   
+
     첨부파일(사진)이 포함된 최신 게시글 4개를 조회합니다.
     - 게시글에 이미지가 여러 개일 경우 가장 첫 번째 이미지를 썸네일로 사용합니다.
     - 결과가 빈 배열([])일 경우 프론트엔드에서 예외 처리 화면을 보여줍니다.
-   
+
     return crud_post.get_club_feed(db=db, limit=4)
 """
 
 
 # [이슈 7 해결] 게시글 수정 API 단일화 (공지/일반/질문 통합)
 # 기존에 있던 update_notice_api, update_free_post_api, update_question_post_api 삭제함.
+# app/api/v1/posts.py 내 게시글 통합 수정 API 수정
 @router.put("/{post_id}", summary="게시글 통합 수정 (공지/일반/질문)")
 def update_integrated_post_api(
     post_id: int,
@@ -53,15 +55,16 @@ def update_integrated_post_api(
     current_user = Depends(get_current_user)
 ):
     """
-    게시글 수정 API를 하나로 통합하여 유지보수성을 극대화합니다.
-    - DB에 저장된 기존 category를 기준으로 권한(임원진 vs 일반)을 분기 처리합니다.
+    게시글 수정 API 통합 관리
+    - [요구사항 반영]: 더 이상 사용되지 않는 schedule_date 참조를 완전히 제거하고,
+      start_date 및 end_date 필드로 안전하게 업데이트되도록 수정합니다.
     """
     db_post = crud_post.get_post_by_id(db=db, post_id=post_id)
     if not db_post:
         raise HTTPException(status_code=404, detail="해당 게시글을 찾을 수 없습니다.")
 
     # 1. 권한 분기: 공지사항일 경우 임원진(role_id: 2~5) 검증
-    if db_post.category == "NOTICE":
+    if db_post.category == "공지":
         if getattr(current_user, "role_id", None) not in NOTICE_ALLOWED_ROLE_IDS:
             raise HTTPException(status_code=403, detail="공지를 수정할 권한이 없습니다.")
     # 2. 권한 분기: 일반/질문일 경우 본인 또는 최고관리자(role_id: 2) 검증
@@ -69,15 +72,15 @@ def update_integrated_post_api(
         if db_post.user_id != current_user.id and getattr(current_user, "role_id", None) != 2:
             raise HTTPException(status_code=403, detail="본인이 작성한 게시글만 수정할 수 있습니다.")
 
-    # 3. 통합 업데이트 수행
+    # 3. 통합 업데이트 수행 (schedule_date 제거 -> start_date, end_date 반영)
     db_post.title = post_in.title
     db_post.content = post_in.content
-    if post_in.schedule_date:
-        db_post.schedule_date = post_in.schedule_date
-        
+    db_post.start_date = post_in.start_date
+    db_post.end_date = post_in.end_date
+
     db.commit()
     db.refresh(db_post)
-    return {"message": "게시글이 성공적으로 수정되었습니다.", "data": db_post}
+    return {"data": db_post}
 
 
 #작성자 : 천석훈 , 김세연, 문호성
@@ -91,7 +94,7 @@ def get_notice_list_api(db: Session = Depends(get_db)):
     """
     # 1. 아까 2단계에서 만든 파이썬 엔진(crud_post)에게 DB에서 데이터 긁어오라고 명
     notices_data = crud_post.get_notice_list(db=db, limit=10)
-    
+
     # 2. 1단계에서 만든 데이터 규격(NoticeListResponse)에 맞춰서 딕셔너리로 포장 후 배달!
     return {"notices": notices_data}
 
@@ -170,15 +173,13 @@ def get_free_post_list(page: int = 1, db: Session = Depends(get_db)):
     [Post_L_002] 자유게시판 게시글 목록 조회 API
     - 최신순으로 정렬된 10개의 게시글을 가져옵니다.
     - 게시글이 없으면 "등록된 게시글이 없습니다"라는 메시지와 함께 빈 리스트를 반환합니다.
+    - 좋아요 수와 댓글 수를 함께 응답합니다.
     """
-    # 1. CRUD 창고에서 자유게시판 데이터 가져오기
     posts_data = crud_post.get_free_posts(db=db, page=page, limit=10)
-    
-    # 2. 게시글이 없는 경우 친절한 안내 문구 설정
+
     if not posts_data:
         return {"message": "등록된 게시글이 없습니다.", "posts": []}
-    
-    # 3. 데이터 포장해서 배달!
+
     return {"posts": posts_data}
 
 #=============================
@@ -192,7 +193,7 @@ def create_free_post_api(
     # 1. 작성 제한 확인 (5개)
     if crud_post.get_user_post_count(db, current_user.id, "일반") >= 5:
         raise HTTPException(status_code=400, detail="일반은 최대 5개까지만 작성 가능합니다.")
-    
+
     # 2. 작성 로직 수행
     new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
     return {"message": "게시글이 작성되었습니다.", "data": new_post}
@@ -207,12 +208,12 @@ def delete_free_post_api(
     post = crud_post.get_post_by_id(db, post_id)
     if not post or post.category != "일반":
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
-    
+
     # 권한 체크: 본인 또는 관리자(role_id=2 가정)만 삭제 가능
     # (실제 관리자 role 값에 맞춰 수정 필요)
     if post.user_id != current_user.id and current_user.role_id != 2:
         raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
-        
+
     crud_post.delete_free_post(db=db, post_id=post_id)
     return {"message": "삭제되었습니다."}
 
@@ -225,17 +226,18 @@ def get_question_post_list(page: int = 1, db: Session = Depends(get_db)):
     [Post_L_003] 질문게시판 게시글 목록 조회 API
     - 최신순 정렬, 페이지당 10개 출력.
     - 게시글이 없을 경우 안내 문구 반환.
+    - 좋아요 수와 댓글 수를 함께 응답합니다.
     """
     posts_data = crud_post.get_question_posts(db=db, page=page, limit=10)
-    
+
     if not posts_data:
         return {"message": "등록된 게시글이 없습니다.", "posts": []}
-    
+
     # 제목 말줄임표 처리 (백엔드 처리 요청 시 적용)
     for post in posts_data:
-        if len(post.title) > 20:
-            post.title = post.title[:20] + "..."
-            
+        if len(post["title"]) > 20:
+            post["title"] = post["title"][:20] + "..."
+
     return {"posts": posts_data}
 
 # 질문게시판 작성, 수정, 삭제는 자유게시판 로직과 동일하게 진행 가능
@@ -258,7 +260,7 @@ def create_question_post_api(
     # 1. 작성 제한 확인 (5개)
     if crud_post.get_user_post_count(db, current_user.id, "질문") >= 5:
         raise HTTPException(status_code=400, detail="질문게시판은 최대 5개까지만 작성 가능합니다.")
-    
+
     # 2. 작성 로직 수행 (프론트에서 post_in.post_type을 "질문"으로 보내야 함)
     new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
     return {"message": "질문 게시글이 성공적으로 작성되었습니다.", "data": new_post}
@@ -274,11 +276,11 @@ def delete_question_post_api(
     post = crud_post.get_post_by_id(db, post_id)
     if not post or post.category != "질문":
         raise HTTPException(status_code=404, detail="해당 질문 게시글을 찾을 수 없습니다.")
-    
+
     # 권한 체크: 본인 또는 최고 관리자(role_id=2 가정)만 삭제 가능
     if post.user_id != current_user.id and getattr(current_user, 'role_id', None) != 2:
         raise HTTPException(status_code=403, detail="질문 게시글을 삭제할 권한이 없습니다.")
-        
+
     crud_post.delete_question_post(db=db, post_id=post_id)
     return {"message": "질문 게시글이 성공적으로 삭제되었습니다."}
 
@@ -288,49 +290,71 @@ def delete_question_post_api(
 # =============================
 @router.get("/all", summary="전체 게시글 통합 조회")
 def get_all_post_list(
-    page: int = 1, 
-    db: Session = Depends(get_db),
-    # [수정사항]: is_liked(좋아요 여부) 판별을 위해 로그인 유저 정보가 반드시 필요
-    current_user: User = Depends(get_current_user) 
+    page: int = 1,
+    db: Session = Depends(get_db)
 ):
     """
     공지, 자유, 질문 등 모든 카테고리의 게시글을 한 번에 최신순으로 반환합니다.
-    - 프론트엔드의 호출 횟수를 단축시키고, 좋아요 수 및 댓글 수를 단일 쿼리로 집계합니다.
+    - 좋아요 수 및 댓글 수를 단일 쿼리로 집계합니다.
+    - is_liked(좋아요 여부)는 게시글 상세 조회 API에서 확인하세요.
     """
-    # [수정사항]: 기존 get_all_posts 대신 get_all_posts_optimized 호출 및 current_user_id 전달
     posts_data = crud_post.get_all_posts_optimized(
-        db=db, 
-        current_user_id=current_user.id, 
-        page=page, 
+        db=db,
+        page=page,
         limit=10
     )
-    
+
     if not posts_data:
         return {"total_count": 0, "posts": []}
-        
+
     return {"total_count": len(posts_data), "posts": posts_data}
 
 # =============================
 # [새 기능] 게시글 상세 조회 API (Join 포함)
 # =============================
-@router.get("/{post_id}/detail", response_model=PostDetailResponse, summary="게시글 상세 조회 (좋아요/댓글 포함)")
-def get_post_detail_api(post_id: int, db: Session = Depends(get_db)):
+@router.get("/{post_id}/detail", response_model=PostDetailResponse, summary="게시글 상세 조회 (좋아요/댓글/파일 포함)")
+def get_post_detail_api(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """
-    게시글 본문, 좋아요 개수, 댓글 목록을 한 번의 통신으로 응답합니다.
-    - 프론트엔드의 렌더링 성능을 극대화하고 네트워크 병목을 해소합니다.
+    게시글 본문, 좋아요 개수/여부, 작성자 여부, 첨부파일, 댓글 목록을 한 번의 통신으로 응답합니다.
+    - is_liked: 현재 로그인 사용자가 좋아요를 눌렀는지 여부
+    - is_author: 현재 로그인 사용자가 작성자인지 여부 (Frontend 편집 버튼 노출 판단용)
+    - images: 이미지 첨부파일 목록 (image/* MIME 타입)
+    - attachments: 일반 첨부파일 목록 (PDF, DOCX 등 이미지 외)
+    - 댓글 작성자명이 함께 반환됩니다.
     """
-    result = crud_post.get_post_detail_with_relations(db=db, post_id=post_id)
-    
+    result = crud_post.get_post_detail_with_relations(
+        db=db, post_id=post_id, current_user_id=current_user.id
+    )
+
     if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="해당 게시글을 찾을 수 없습니다."
         )
-        
+
+    post = result["post"]
     return {
         "data": {
-            "post_info": result["post"],
+            "post_info": {
+                "id": post.id,
+                "user_id": post.user_id,
+                "author_name": result["author_name"],
+                "category": post.category,
+                "title": post.title,
+                "content": post.content,
+                "start_date": post.start_date,
+                "end_date": post.end_date,
+                "created_at": post.created_at,
+            },
             "total_likes": result["like_count"],
+            "is_liked": result["is_liked"],
+            "is_author": result["is_author"],
+            "images": result["images"],
+            "attachments": result["attachments"],
             "comments": result["comments"]
         }
     }

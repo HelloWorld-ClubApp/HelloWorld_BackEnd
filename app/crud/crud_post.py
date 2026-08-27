@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import case, desc, func
 from app.models.post import Post, PostFile, Like, Comment
 from app.models.user import User , Role
+from app.models.file import File
 from sqlalchemy.orm import Session
 
 from app.schemas.post import PostCreate
@@ -11,13 +12,22 @@ from app.core.enum.post import PostCategory
 from app.models.post import Comment
 
 def get_latest_posts(db: Session, limit: int = 3):
+    """
+    메인 페이지 최신 게시글 조회 - 댓글 수 join 포함
+    """
     return (
-        db.query(Post, Role.role_name)
+        db.query(
+            Post,
+            Role.role_name,
+            func.count(Comment.id.distinct()).label("comment_count")
+        )
         .join(User, Post.user_id == User.id)
         .join(Role, User.role_id == Role.id)
+        .outerjoin(Comment, Post.id == Comment.post_id)
+        .group_by(Post.id, Role.role_name)
         .order_by(
-            case((Post.category == PostCategory.NOTICE.value, 0), else_=1), # 공지 우선순위
-            Post.created_at.desc()                      # 최신순
+            case((Post.category == PostCategory.NOTICE.value, 0), else_=1),
+            Post.created_at.desc()
         )
         .limit(limit)
         .all()
@@ -121,6 +131,7 @@ def update_notice_post(db: Session, post_id: int, post_data: dict):
     """
     [Post_001] 공지사항 게시글 수정
     - 수정할 게시글 번호(post_id)를 찾아 새로운 데이터로 덮어씌웁니다.
+    - schedule_date 대신 start_date/end_date를 사용합니다.
     """
     db_post = db.query(Post).filter(Post.id == post_id).first()
 
@@ -128,7 +139,8 @@ def update_notice_post(db: Session, post_id: int, post_data: dict):
         db_post.category = post_data.get("post_type", db_post.category)
         db_post.title = post_data.get("title", db_post.title)
         db_post.content = post_data.get("content", db_post.content)
-        db_post.schedule_date = post_data.get("schedule_date", db_post.schedule_date)
+        db_post.start_date = post_data.get("start_date", db_post.start_date)
+        db_post.end_date = post_data.get("end_date", db_post.end_date)
         db.commit()
         db.refresh(db_post)
 
@@ -151,20 +163,34 @@ def delete_notice_post(db: Session, post_id: int):
 # Post_L_002 자유게시판 목록 조회 기능
 def get_free_posts(db: Session, page: int = 1, limit: int = 10):
     """
-    [Post_L_002] 자유게시판 최신 목록 조회
-    - filter(): '자유게시판' 카테고리만 쏙 골라냄.
-    - order_by(): 만든 날짜(created_at)를 기준으로 최신순(desc)으로 줄 세움.
-    - 페이징: page 번호에 따라 필요한 만큼만(limit) 가져옴.
+    [Post_L_002] 자유게시판 최신 목록 조회 - 좋아요/댓글 수 join 포함
     """
     offset = (page - 1) * limit
-    return (
-        db.query(Post)
+    rows = (
+        db.query(
+            Post,
+            func.count(Like.id.distinct()).label("like_count"),
+            func.count(Comment.id.distinct()).label("comment_count")
+        )
         .filter(Post.category == PostCategory.FREE.value)
+        .outerjoin(Like, Post.id == Like.post_id)
+        .outerjoin(Comment, Post.id == Comment.post_id)
+        .group_by(Post.id)
         .order_by(Post.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
+    return [
+        {
+            "id": post.id,
+            "title": post.title,
+            "created_at": post.created_at,
+            "like_count": like_count,
+            "comment_count": comment_count,
+        }
+        for post, like_count, comment_count in rows
+    ]
 
 #=============================
 # Post_002 자유게시판 추가, 수정, 삭제 및 제한 확인
@@ -200,20 +226,34 @@ def delete_free_post(db: Session, post_id: int):
 # Post_L_003 질문게시판 목록 조회 기능
 def get_question_posts(db: Session, page: int = 1, limit: int = 10):
     """
-    [Post_L_003] 질문게시판 최신 목록 조회
-    - filter(): '질문' 카테고리만 필터링.
-    - order_by(): 최신등록순(created_at desc) 정렬.
-    - 페이징: page 단위로 limit만큼 조회.
+    [Post_L_003] 질문게시판 최신 목록 조회 - 좋아요/댓글 수 join 포함
     """
     offset = (page - 1) * limit
-    return (
-        db.query(Post)
+    rows = (
+        db.query(
+            Post,
+            func.count(Like.id.distinct()).label("like_count"),
+            func.count(Comment.id.distinct()).label("comment_count")
+        )
         .filter(Post.category == PostCategory.QNA.value)
+        .outerjoin(Like, Post.id == Like.post_id)
+        .outerjoin(Comment, Post.id == Comment.post_id)
+        .group_by(Post.id)
         .order_by(Post.created_at.desc())
         .offset(offset)
         .limit(limit)
         .all()
     )
+    return [
+        {
+            "id": post.id,
+            "title": post.title,
+            "created_at": post.created_at,
+            "like_count": like_count,
+            "comment_count": comment_count,
+        }
+        for post, like_count, comment_count in rows
+    ]
 
 #=============================
 # Post_003 질문게시판 수정, 삭제
@@ -315,25 +355,94 @@ def get_all_posts(db: Session, page: int = 1, limit: int = 10):
 # ==========================================
 # [Post_D_001] 게시글 상세 조회 (좋아요/댓글 Join 최적화)
 # ==========================================
-def get_post_detail_with_relations(db: Session, post_id: int):
+def get_post_detail_with_relations(db: Session, post_id: int, current_user_id: int):
     """
-    단일 게시글과 해당 게시글에 달린 좋아요 수, 댓글 목록을 한 번의 쿼리로 가져옵니다.
-    - 성능 병목(N+1)을 방지하기 위한 아키텍처 최적화 쿼리입니다.
+    [Post_D_001] 단일 게시글과 해당 게시글에 달린 모든 데이터를 한 번에 반환합니다.
+    - is_liked: 현재 로그인 사용자의 좋아요 여부 판별
+    - is_author: 현재 로그인 사용자가 작성자인지 판별
+    - author_name: 작성자 이름 (User.name 조인)
+    - 댓글 목록: 댓글 작성자 이름도 함께 반환
+    - images: 이미지 첨부파일 (image/* MIME)
+    - attachments: 일반 첨부파일 (이미지 제외)
     """
-    post = db.query(Post).filter(Post.id == post_id).first()
-    
-    if not post:
+    # 게시글 + 작성자 이름 join
+    row = (
+        db.query(Post, User.name.label("author_name"))
+        .join(User, Post.user_id == User.id)
+        .filter(Post.id == post_id)
+        .first()
+    )
+
+    if not row:
         return None
-        
-    # 좋아요 개수 집계 (Count)
+
+    post, author_name = row
+
+    # 좋아요 개수 집계
     like_count = db.query(func.count(Like.id)).filter(Like.post_id == post_id).scalar()
-    
-    # 댓글 목록 조회 (최신순)
-    comments = db.query(Comment).filter(Comment.post_id == post_id).order_by(Comment.created_at.desc()).all()
-    
+
+    # 현재 사용자 좋아요 여부
+    is_liked = db.query(Like).filter(
+        Like.post_id == post_id,
+        Like.user_id == current_user_id
+    ).first() is not None
+
+    # 작성자 여부
+    is_author = (post.user_id == current_user_id)
+
+    # 댓글 목록 (작성자 이름 join)
+    comment_rows = (
+        db.query(Comment, User.name.label("commenter_name"))
+        .join(User, Comment.user_id == User.id)
+        .filter(Comment.post_id == post_id)
+        .order_by(Comment.created_at.desc())
+        .all()
+    )
+    comments = [
+        {
+            "id": c.id,
+            "user_id": c.user_id,
+            "author_name": commenter_name,
+            "content": c.content,
+            "created_at": c.created_at,
+            "updated_at": c.updated_at,
+        }
+        for c, commenter_name in comment_rows
+    ]
+
+    # 첨부파일 조회 (post_files -> files join)
+    file_rows = (
+        db.query(File)
+        .join(PostFile, File.id == PostFile.file_id)
+        .filter(PostFile.post_id == post_id)
+        .order_by(File.id.asc())
+        .all()
+    )
+
+    # 이미지(image/*)와 일반 첨부파일 분리
+    images = []
+    attachments = []
+    for f in file_rows:
+        file_dict = {
+            "id": f.id,
+            "file_url": f.file_url,
+            "file_type": f.file_type,
+            "file_size": f.file_size,
+            "original_name": f.original_name,
+        }
+        if f.file_type.startswith("image/"):
+            images.append(file_dict)
+        else:
+            attachments.append(file_dict)
+
     return {
         "post": post,
+        "author_name": author_name,
         "like_count": like_count,
+        "is_liked": is_liked,
+        "is_author": is_author,
+        "images": images,
+        "attachments": attachments,
         "comments": comments
     }
 
@@ -342,21 +451,19 @@ def get_post_detail_with_relations(db: Session, post_id: int):
 # 작성자 : 엄인섭
 #============================================================
 
-def get_all_posts_optimized(db: Session, current_user_id: int, page: int = 1, limit: int = 10):
+def get_all_posts_optimized(db: Session, page: int = 1, limit: int = 10):
     """
-    [이슈 1, 2 해결] 전체 게시판 통합 목록 조회 (성능 최적화 버전)
+    [전체 게시판 통합 목록 조회 - 성능 최적화 버전]
     - Outer Join과 Group By를 사용하여 like_count, comment_count를 단일 쿼리로 추출.
-    - case 문을 활용하여 현재 사용자가 좋아요를 눌렀는지(is_liked) 판별.
+    - is_liked는 상세 조회 API로 이동됨.
     """
     offset = (page - 1) * limit
     
-    # 1. 서브쿼리를 통한 Aggregate 및 Boolean 판단
     query = (
         db.query(
             Post,
             func.count(Like.id.distinct()).label("like_count"),
-            func.count(Comment.id.distinct()).label("comment_count"),
-            func.max(case((Like.user_id == current_user_id, 1), else_=0)).label("is_liked")
+            func.count(Comment.id.distinct()).label("comment_count")
         )
         .outerjoin(Like, Post.id == Like.post_id)
         .outerjoin(Comment, Post.id == Comment.post_id)
@@ -367,9 +474,8 @@ def get_all_posts_optimized(db: Session, current_user_id: int, page: int = 1, li
         .all()
     )
     
-    # 2. Pydantic 스키마에 맞게 딕셔너리로 매핑하여 반환
     result = []
-    for post, like_count, comment_count, is_liked_int in query:
+    for post, like_count, comment_count in query:
         result.append({
             "id": post.id,
             "category": post.category,
@@ -377,7 +483,6 @@ def get_all_posts_optimized(db: Session, current_user_id: int, page: int = 1, li
             "created_at": post.created_at,
             "like_count": like_count,
             "comment_count": comment_count,
-            "is_liked": bool(is_liked_int)
         })
         
     return result

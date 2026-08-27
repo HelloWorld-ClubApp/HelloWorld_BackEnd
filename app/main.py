@@ -16,6 +16,7 @@ from app.models.chat import ChatRoom, Message # (ChatParticipant는 chat.py 안�
 from app.models.contest import Host, Category, Contest, ContestCategory
 from app.models.post import Post, PostFile, PostReadLog, Like, Comment
 from app.models.schedule import Schedule, Idea
+from app.core.enum.user import RoleName
 # ==========================================
 # 라우터(API) 임포트
 # ==========================================
@@ -26,7 +27,7 @@ def init_seed_data():
     db = SessionLocal()
     try:
         # 우리가 정의한 동아리 필수 역할 목록
-        required_roles = ["일반회원", "회장", "부회장", "총무"]
+        required_roles = [role.value for role in RoleName]
         
         added_new_role = False
         for role_name in required_roles:

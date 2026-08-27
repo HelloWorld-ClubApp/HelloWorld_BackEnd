@@ -8,7 +8,8 @@ from jwt.exceptions import InvalidTokenError
 from app.core.database import SessionLocal
 from app.core.config import settings
 from app.crud import crud_user
-from app.models import user
+from app.models.user import User
+from app.core.enum.user import JOIN_APPROVER_ROLE_NAMES
 
 # 토큰을 받을 API 주소 설정
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -50,7 +51,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 
-def get_current_admin(current_user: user = Depends(get_current_user)):
+def get_current_admin(current_user: User = Depends(get_current_user)):
     """
     get_current_user를 통해 로그인된 유저를 먼저 확인하고,
     그 유저의 역할(Role)이 '회장' 또는 '부회장'인지 검증합니다.
@@ -61,5 +62,15 @@ def get_current_admin(current_user: user = Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="권한이 없습니다. 회장 또는 부회장만 접근 가능합니다."
+        )
+    return current_user
+
+
+def get_current_join_manager(current_user: User = Depends(get_current_user)):
+    role_name = current_user.role.role_name if current_user.role else None
+    if role_name not in JOIN_APPROVER_ROLE_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="가입 신청 관리는 회장, 부회장, 총무만 가능합니다."
         )
     return current_user

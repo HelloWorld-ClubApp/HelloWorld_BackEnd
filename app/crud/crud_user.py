@@ -1,12 +1,14 @@
 # 작성자 : 엄인섭 (2026-06-12)
 # 학번/이메일 중복 검사 쿼리
 import datetime
+from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.user import User, Role
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash # 보안 모듈에서 해시 함수를 가져옴
 from app.models.file import File
 from sqlalchemy import case
+from app.core.enum.user import JoinStatus, RoleName
 
 
 def get_user_by_student_id(db: Session, student_id: str):
@@ -16,6 +18,10 @@ def get_user_by_student_id(db: Session, student_id: str):
 def get_user_by_email(db: Session, email: str):
     """이메일로 유저 조회 (중복 검사용)"""
     return db.query(User).filter(User.email == email).first()
+
+def get_user_by_id(db: Session, user_id: int):
+    """유저 ID로 유저 조회"""
+    return db.query(User).filter(User.id == user_id).first()
 
 def create_user(db: Session, user_in: UserCreate, default_role_id: int = 1):
     """새로운 유저 DB에 생성"""
@@ -29,7 +35,8 @@ def create_user(db: Session, user_in: UserCreate, default_role_id: int = 1):
         admission_year=user_in.admission_year,
         role_id=default_role_id, # 기본 역할 부여 (1 = 일반 회원 가정)
         status="재학",
-        phone="010-0000-0000" # UI에 없으므로 기본값 세팅 (나중에 마이페이지에서 수정)
+        phone="010-0000-0000", # UI에 없으므로 기본값 세팅 (나중에 마이페이지에서 수정)
+        join_status=JoinStatus.PENDING.value
     )
     db.add(db_user)
     db.commit()
@@ -47,6 +54,7 @@ def get_club_members_grouped(db: Session, see_all: bool = False):
         db.query(User.id, User.name, Role.role_name, User.admission_year, File.file_url)
         .join(Role, User.role_id == Role.id)
         .outerjoin(File, User.file_id == File.id)
+        .filter(User.is_deleted == False, User.join_status == JoinStatus.APPROVED.value)
     )
 
     # 2. 메인 페이지(see_all=False)일 경우 올해(1학년), 작년(2학년) 입학생만 필터링
@@ -94,6 +102,44 @@ def get_club_members_grouped(db: Session, see_all: bool = False):
     return result
 
 
+def count_pending_join_requests(db: Session) -> int:
+    return db.query(User).filter(
+        User.is_deleted == False,
+        User.join_status == JoinStatus.PENDING.value,
+    ).count()
+
+
+def count_approved_members(db: Session) -> int:
+    return db.query(User).filter(
+        User.is_deleted == False,
+        User.join_status == JoinStatus.APPROVED.value,
+    ).count()
+
+
+def get_pending_join_requests(db: Session, skip: int = 0, limit: int = 50):
+    return db.query(User).filter(
+        User.is_deleted == False,
+        User.join_status == JoinStatus.PENDING.value,
+    ).order_by(User.created_at.asc()).offset(skip).limit(limit).all()
+
+
+def approve_join_request(db: Session, user: User):
+    member_role = db.query(Role).filter(Role.role_name == RoleName.MEMBER.value).first()
+    if member_role:
+        user.role_id = member_role.id
+    user.join_status = JoinStatus.APPROVED.value
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def reject_join_request(db: Session, user: User):
+    user.join_status = JoinStatus.REJECTED.value
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 
 # ==========================================
 # [MY_007] 회원 탈퇴 (Soft Delete)
@@ -114,7 +160,7 @@ def soft_delete_user(db: Session, user_id: int):
 # [MY_001] 프로필 수정 (학적 상태 및 이미지 업데이트)
 # 작성자 : 천석훈, 김세연, 문호성, 강기민
 # ==========================================
-def update_user_profile(db: Session, user_id: int, status_in: str, file_id: int = None):
+def update_user_profile(db: Session, user_id: int, status_in: str, file_id: Optional[int] = None):
     """
     사용자의 학적 상태(status)와 프로필 이미지(file_id)를 업데이트합니다.
     새로운 이미지가 업로드되어 file_id가 전달된 경우에만 프로필 이미지를 갱신합니다.
