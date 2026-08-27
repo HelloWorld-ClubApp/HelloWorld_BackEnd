@@ -54,6 +54,11 @@ class Comment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     post: Mapped["Post"] = relationship(back_populates="comments")
+    user: Mapped["User"] = relationship()
+
+    @property
+    def author_name(self) -> str:
+        return self.user.display_name if self.user else ""
 
 class Like(Base):
     __tablename__ = "likes"

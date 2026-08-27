@@ -2,6 +2,7 @@
 # 작성자 : 천석훈, 김세연, 문호성
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
+from typing import List
 
 # 동아리 프로젝트 구조에 맞춘 의존성 주입 (경로 확인 필수!)
 from app.api.dependencies import get_db, get_current_user 
@@ -77,10 +78,13 @@ def update_comment_api(
     updated_comment = comment_service.update_comment(
         db=db, comment_id=comment_id, user_id=current_user.id, comment_in=comment_in
     )
-    return {"message": "댓글이 성공적으로 수정되었습니다.", "data": updated_comment}
+    return {
+        "message": "댓글이 성공적으로 수정되었습니다.",
+        "data": CommentResponse.model_validate(updated_comment)
+    }
 
 # [이슈 3 해결] 불필요한 단독 댓글 조회 API 사용 중지(Deprecated)[cite: 18]
-@router.get("/post/{post_id}", deprecated=True, summary="[Deprecated] 댓글 단독 조회")
+@router.get("/post/{post_id}", response_model=List[CommentResponse], deprecated=True, summary="[Deprecated] 댓글 단독 조회")
 def get_comments(post_id: int, db: Session = Depends(get_db)):
     """
     게시글 상세 조회(/{post_id}/detail) API에 이미 댓글 목록 조인이 포함되어 있으므로,

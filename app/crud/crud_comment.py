@@ -2,6 +2,7 @@
 # 작성자 : 천석훈, 김세연, 문호성
 from sqlalchemy.orm import Session
 from app.models.post import Comment
+from app.models.user import User
 from app.schemas.comment import CommentCreate, CommentUpdate
 from fastapi import HTTPException, status
 
@@ -41,7 +42,25 @@ class CRUDComment:
         """
         특정 게시글(post_id)에 달린 모든 댓글을 작성 시간순(오름차순)으로 조회합니다.
         """
-        return db.query(Comment).filter(Comment.post_id == post_id).order_by(Comment.created_at.asc()).all()
+        rows = (
+            db.query(Comment, User)
+            .join(User, Comment.user_id == User.id)
+            .filter(Comment.post_id == post_id)
+            .order_by(Comment.created_at.asc())
+            .all()
+        )
+        return [
+            {
+                "id": comment.id,
+                "user_id": comment.user_id,
+                "post_id": comment.post_id,
+                "author_name": user.display_name,
+                "content": comment.content,
+                "created_at": comment.created_at,
+                "updated_at": comment.updated_at,
+            }
+            for comment, user in rows
+        ]
 
 
     def update_comment(self, db: Session, comment_id: int, user_id: int, comment_in: CommentUpdate):

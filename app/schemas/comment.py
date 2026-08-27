@@ -39,6 +39,7 @@ class CommentResponse(CommentBase):
     id: int
     user_id: int
     post_id: int
+    author_name: str
     created_at: datetime
     updated_at: Optional[datetime] = None
 
