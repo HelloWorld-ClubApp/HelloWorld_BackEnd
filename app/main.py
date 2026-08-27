@@ -1,8 +1,10 @@
 # FastAPI 애플리케이션 진입점 (설정 로드, 라우터 등록)
 # 작성자 : 엄인섭
+import os
 from app.api.v1 import comments, ideas
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from app.core.database import engine, Base, SessionLocal
 
@@ -64,6 +66,10 @@ async def lifespan(app: FastAPI):
 # FastAPI 앱 생성
 # ==========================================
 app = FastAPI(lifespan=lifespan)
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,

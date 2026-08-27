@@ -11,6 +11,12 @@ from app.schemas.post import PostCreate
 from app.core.enum.post import PostCategory
 from app.models.post import Comment
 
+def normalize_file_url(file_url: str) -> str:
+    normalized_url = file_url.replace("\\", "/")
+    if normalized_url.startswith("uploads/"):
+        return f"/{normalized_url}"
+    return normalized_url
+
 def get_latest_posts(db: Session, limit: int = 3):
     """
     메인 페이지 최신 게시글 조회 - 댓글 수 join 포함
@@ -425,7 +431,7 @@ def get_post_detail_with_relations(db: Session, post_id: int, current_user_id: i
     for f in file_rows:
         file_dict = {
             "id": f.id,
-            "file_url": f.file_url,
+            "file_url": normalize_file_url(f.file_url),
             "file_type": f.file_type,
             "file_size": f.file_size,
             "original_name": f.original_name,
