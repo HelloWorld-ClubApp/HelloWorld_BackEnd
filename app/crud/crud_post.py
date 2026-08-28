@@ -17,6 +17,10 @@ def normalize_file_url(file_url: str) -> str:
         return f"/{normalized_url}"
     return normalized_url
 
+
+def build_file_download_url(file_id: int) -> str:
+    return f"/api/v1/files/{file_id}/download"
+
 def get_latest_posts(db: Session, limit: int = 3):
     """
     메인 페이지 최신 게시글 조회 - 댓글 수 join 포함
@@ -432,6 +436,7 @@ def get_post_detail_with_relations(db: Session, post_id: int, current_user_id: i
         file_dict = {
             "id": f.id,
             "file_url": normalize_file_url(f.file_url),
+            "download_url": build_file_download_url(f.id),
             "file_type": f.file_type,
             "file_size": f.file_size,
             "original_name": f.original_name,

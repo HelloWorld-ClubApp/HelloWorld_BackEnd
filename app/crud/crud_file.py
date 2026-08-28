@@ -8,3 +8,7 @@ def create_file(db: Session, url: str, file_type: str, size: int, name: str):
     db.commit()
     db.refresh(new_file)
     return new_file
+
+
+def get_file_by_id(db: Session, file_id: int):
+    return db.query(File).filter(File.id == file_id).first()

@@ -247,6 +247,7 @@ class FileAttachmentResponse(BaseModel):
     """게시글에 첨부된 파일 단건 응답 뼈대"""
     id: int = Field(..., description="파일 고유 번호")
     file_url: str = Field(..., description="파일 접근 URL")
+    download_url: str = Field(..., description="파일 다운로드 API URL")
     file_type: str = Field(..., description="파일 MIME 타입 (예: image/jpeg, application/pdf)")
     file_size: int = Field(..., description="파일 크기 (Byte)")
     original_name: str = Field(..., description="원본 파일명")

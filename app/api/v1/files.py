@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.crud import crud_file
@@ -10,6 +11,19 @@ from app.crud import crud_file
 router = APIRouter()
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 UPLOAD_DIR = "uploads"
+
+
+def resolve_upload_path(file_url: str) -> Path:
+    upload_root = Path(UPLOAD_DIR).resolve()
+    normalized_url = file_url.replace("\\", "/").lstrip("/")
+    candidate = Path(normalized_url)
+    file_path = candidate if candidate.parts and candidate.parts[0] == UPLOAD_DIR else Path(UPLOAD_DIR) / candidate.name
+    resolved_path = file_path.resolve()
+
+    if resolved_path != upload_root and upload_root not in resolved_path.parents:
+        raise HTTPException(status_code=400, detail="잘못된 파일 경로입니다.")
+
+    return resolved_path
 
 @router.post("/upload", summary="파일 업로드")
 async def upload_file(
@@ -47,5 +61,24 @@ async def upload_file(
     return {
         "file_id": file_obj.id,
         "file_url": file_obj.file_url,
-        "file_absolute_url": f"{base_url}{file_obj.file_url}"
+        "file_absolute_url": f"{base_url}{file_obj.file_url}",
+        "download_url": f"/api/v1/files/{file_obj.id}/download",
+        "download_absolute_url": f"{base_url}/api/v1/files/{file_obj.id}/download"
     }
+
+
+@router.get("/{file_id}/download", summary="파일 다운로드")
+def download_file(file_id: int, db: Session = Depends(get_db)):
+    file_obj = crud_file.get_file_by_id(db, file_id)
+    if not file_obj:
+        raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+
+    file_path = resolve_upload_path(file_obj.file_url)
+    if not file_path.exists() or not file_path.is_file():
+        raise HTTPException(status_code=404, detail="파일이 서버에 존재하지 않습니다.")
+
+    return FileResponse(
+        path=file_path,
+        media_type=file_obj.file_type,
+        filename=file_obj.original_name,
+    )
