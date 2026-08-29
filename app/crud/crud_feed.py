@@ -5,6 +5,25 @@ from app.schemas.feed import FeedCreate, FeedUpdate
 from app.models.file import File
 from app.crud.crud_chat import is_participant, add_message
 
+
+def normalize_file_url(file_url: str) -> str:
+    normalized_url = file_url.replace("\\", "/")
+    if normalized_url.startswith("uploads/"):
+        return f"/{normalized_url}"
+    return normalized_url
+
+
+def build_feed_response(feed: Feed, file_url: str):
+    return {
+        "id": feed.id,
+        "title": feed.title,
+        "file_id": feed.file_id,
+        "file_url": normalize_file_url(file_url),
+        "user_id": feed.user_id,
+        "created_at": feed.created_at,
+    }
+
+
 # ==========================================
 # FEED_001
 # 메인페이지 피드 등록
@@ -24,7 +43,8 @@ def create_feed(
     db.commit()
     db.refresh(db_feed)
 
-    return db_feed
+    file = db.query(File).filter(File.id == db_feed.file_id).first()
+    return build_feed_response(db_feed, file.file_url if file else "")
 
 
 # ==========================================
@@ -34,11 +54,13 @@ def create_feed(
 def get_feed_list(
     db: Session
 ):
-    return (
-        db.query(Feed)
+    rows = (
+        db.query(Feed, File.file_url)
+        .join(File, Feed.file_id == File.id)
         .order_by(Feed.created_at.desc())
         .all()
     )
+    return [build_feed_response(feed, file_url) for feed, file_url in rows]
 
 # ==========================================
 # FEED_003
@@ -65,7 +87,8 @@ def update_feed(
     db.commit()
     db.refresh(feed)
 
-    return feed
+    file = db.query(File).filter(File.id == feed.file_id).first()
+    return build_feed_response(feed, file.file_url if file else "")
 
 # ==========================================
 # FEED_004
@@ -110,7 +133,7 @@ def get_feed_detail(
     db: Session,
     feed_id: int
 ):
-    return (
+    row = (
         db.query(
             Feed.id,
             Feed.title,
@@ -126,6 +149,16 @@ def get_feed_detail(
         )
         .first()
     )
+
+    if not row:
+        return None
+
+    return {
+        "id": row.id,
+        "title": row.title,
+        "file_url": normalize_file_url(row.file_url),
+        "created_at": row.created_at,
+    }
     
 # ==========================================
 # [FEED_006] 피드 채팅방 공유

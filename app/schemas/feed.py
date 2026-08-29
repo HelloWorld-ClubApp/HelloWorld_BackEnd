@@ -11,6 +11,7 @@ class FeedResponse(BaseModel):
     id: int
     title: str
     file_id: int
+    file_url: str
     user_id: int
     created_at: datetime
 
