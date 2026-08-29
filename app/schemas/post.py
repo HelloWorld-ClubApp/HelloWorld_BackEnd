@@ -182,6 +182,28 @@ class QuestionPostListResponse(BaseModel):
     message: Optional[str] = None
     posts: List[QuestionPostResponse] = []
 
+
+class ActivityPostResponse(BaseModel):
+    id: int
+    category: str
+    title: str
+    created_at: datetime
+    like_count: int = Field(0, description="좋아요 수")
+    comment_count: int = Field(0, description="댓글 수")
+    thumbnail_file_id: Optional[int] = None
+    thumbnail_url: Optional[str] = None
+    thumbnail_image: Optional[PostThumbnailResponse] = None
+    images: List[PostThumbnailResponse] = Field(default_factory=list)
+
+    class Config:
+        from_attributes = True
+
+
+class ActivityPostListResponse(BaseModel):
+    message: Optional[str] = None
+    posts: List[ActivityPostResponse] = []
+
+
 class QuestionPostDetailResponse(BaseModel):
     """질문게시판 상세 조회 응답"""
     id: int

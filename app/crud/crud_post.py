@@ -130,6 +130,31 @@ def get_post_thumbnail_map(db: Session, posts):
 
     return thumbnail_by_post_id
 
+
+def get_post_images_map(db: Session, posts):
+    if not posts:
+        return {}
+
+    post_ids = [post.id for post in posts]
+    images_by_post_id = {post_id: [] for post_id in post_ids}
+    image_rows = (
+        db.query(PostFile.post_id, File)
+        .join(File, PostFile.file_id == File.id)
+        .filter(
+            PostFile.post_id.in_(post_ids),
+            File.file_type.like("image/%"),
+        )
+        .order_by(PostFile.post_id.asc(), PostFile.file_id.asc())
+        .all()
+    )
+
+    for post_id, file_obj in image_rows:
+        image = build_thumbnail_image(file_obj)
+        if image:
+            images_by_post_id.setdefault(post_id, []).append(image)
+
+    return images_by_post_id
+
 def get_latest_posts(db: Session, limit: int = 3):
     """
     메인 페이지 최신 게시글 조회 - 댓글 수 join 포함
@@ -419,6 +444,47 @@ def get_question_posts(db: Session, page: int = 1, limit: int = 10):
 
 #=============================
 # Post_003 질문게시판 수정, 삭제
+def get_activity_posts(db: Session, page: int = 1, limit: int = 10):
+    offset = (page - 1) * limit
+    rows = (
+        db.query(
+            Post,
+            func.count(Like.id.distinct()).label("like_count"),
+            func.count(Comment.id.distinct()).label("comment_count")
+        )
+        .filter(Post.category == PostCategory.ACTIVITY.value)
+        .outerjoin(Like, Post.id == Like.post_id)
+        .outerjoin(Comment, Post.id == Comment.post_id)
+        .group_by(Post.id)
+        .order_by(Post.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    posts = [post for post, _, _ in rows]
+    thumbnail_map = get_post_thumbnail_map(db, posts)
+    images_map = get_post_images_map(db, posts)
+
+    result = []
+    for post, like_count, comment_count in rows:
+        data = apply_thumbnail_fields(
+            {
+                "id": post.id,
+                "category": post.category,
+                "title": post.title,
+                "created_at": post.created_at,
+                "like_count": like_count,
+                "comment_count": comment_count,
+                "images": images_map.get(post.id, []),
+            },
+            thumbnail_map.get(post.id),
+        )
+        result.append(data)
+
+    return result
+
+
 def update_question_post(db: Session, post_id: int, post_data: dict):
     """
     [Post_003] 질문게시판 게시글 수정

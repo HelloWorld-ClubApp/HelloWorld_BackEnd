@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Any
 from app.core.database import get_db # 또는 세션 의존성 주입 경로
-from app.schemas.post import PostPreviewResponse, NoticeListResponse, PostCreate, FreePostListResponse,QuestionPostListResponse, PostDetailResponse, PaginatedPostResponse
+from app.schemas.post import PostPreviewResponse, NoticeListResponse, PostCreate, FreePostListResponse,QuestionPostListResponse, ActivityPostListResponse, PostDetailResponse, PaginatedPostResponse
 from app.crud import crud_post
 from app.api.dependencies import get_current_user
 from app.schemas.post import PostCreate
 from app.models.user import User
+from app.core.enum.post import PostCategory
 
 router = APIRouter()
 
@@ -255,6 +256,27 @@ def get_question_post_list(page: int = 1, db: Session = Depends(get_db)):
 
 #=============================
 # Post_003 질문게시판 작성/수정/삭제 API 추가
+@router.get("/activity", response_model=ActivityPostListResponse, summary="동아리활동 목록 조회")
+def get_activity_post_list(page: int = 1, db: Session = Depends(get_db)):
+    posts_data = crud_post.get_activity_posts(db=db, page=page, limit=10)
+
+    if not posts_data:
+        return {"message": "등록된 게시글이 없습니다.", "posts": []}
+
+    return {"posts": posts_data}
+
+
+@router.post("/activity", summary="동아리활동 게시글 작성")
+def create_activity_post_api(
+    post_in: PostCreate,
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user)
+):
+    post_in.post_type = PostCategory.ACTIVITY.value
+    new_post = crud_post.create_post(db=db, post_data=post_in, user_id=current_user.id)
+    return {"message": "동아리활동 게시글이 작성되었습니다.", "data": new_post}
+
+
 @router.post("/question", summary="질문게시판 게시글 작성")
 def create_question_post_api(
     post_in: PostCreate,
