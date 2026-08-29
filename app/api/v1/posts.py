@@ -21,14 +21,17 @@ def get_latest_posts(db: Session = Depends(get_db)):
 
     # 리스트 데이터 가공
     result = []
-    for post, role_name, comment_count in posts_with_roles:
+    for post, role_name, comment_count, thumbnail_image in posts_with_roles:
         result.append({
             "id": post.id,
             "title": post.title,
             "category": post.category,
             "author_role": role_name, # 회장/부회장 정보
             "created_at": post.created_at,
-            "comment_count": comment_count
+            "comment_count": comment_count,
+            "thumbnail_image": thumbnail_image,
+            "thumbnail_file_id": thumbnail_image["id"] if thumbnail_image else None,
+            "thumbnail_url": thumbnail_image["file_url"] if thumbnail_image else None,
         })
     return result
 
@@ -75,6 +78,12 @@ def update_integrated_post_api(
     # 3. 통합 업데이트 수행 (schedule_date 제거 -> start_date, end_date 반영)
     db_post.title = post_in.title
     db_post.content = post_in.content
+    if post_in.thumbnail_file_id is not None:
+        db_post.thumbnail_file_id = crud_post.select_thumbnail_file_id(
+            db=db,
+            file_ids=post_in.file_ids,
+            thumbnail_file_id=post_in.thumbnail_file_id,
+        )
     db_post.start_date = post_in.start_date
     db_post.end_date = post_in.end_date
 
@@ -346,6 +355,7 @@ def get_post_detail_api(
                 "category": post.category,
                 "title": post.title,
                 "content": post.content,
+                "thumbnail_file_id": post.thumbnail_file_id,
                 "start_date": post.start_date,
                 "end_date": post.end_date,
                 "created_at": post.created_at,

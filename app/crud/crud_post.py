@@ -1,5 +1,6 @@
 # 게시글 조회, 페이징 로직
 # 작성자 : 엄인섭
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import case, desc, func
 from app.models.post import Post, PostFile, Like, Comment
@@ -21,11 +22,119 @@ def normalize_file_url(file_url: str) -> str:
 def build_file_download_url(file_id: int) -> str:
     return f"/api/v1/files/{file_id}/download"
 
+
+def build_thumbnail_image(file_obj):
+    if not file_obj or not file_obj.file_type.startswith("image/"):
+        return None
+
+    return {
+        "id": file_obj.id,
+        "file_url": normalize_file_url(file_obj.file_url),
+        "download_url": build_file_download_url(file_obj.id),
+        "file_type": file_obj.file_type,
+        "file_size": file_obj.file_size,
+        "original_name": file_obj.original_name,
+    }
+
+
+def apply_thumbnail_fields(data, thumbnail_image):
+    data["thumbnail_image"] = thumbnail_image
+    data["thumbnail_file_id"] = thumbnail_image["id"] if thumbnail_image else None
+    data["thumbnail_url"] = thumbnail_image["file_url"] if thumbnail_image else None
+    return data
+
+
+def select_thumbnail_file_id(db: Session, file_ids, thumbnail_file_id):
+    file_ids = list(file_ids or [])
+
+    if thumbnail_file_id is not None and thumbnail_file_id not in file_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="대표 이미지는 첨부 파일 목록(file_ids)에 포함되어야 합니다.",
+        )
+
+    if not file_ids:
+        return None
+
+    files = db.query(File).filter(File.id.in_(file_ids)).all()
+    files_by_id = {file.id: file for file in files}
+
+    if thumbnail_file_id is not None:
+        thumbnail_file = files_by_id.get(thumbnail_file_id)
+        if not thumbnail_file:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="대표 이미지 파일을 찾을 수 없습니다.",
+            )
+        if not thumbnail_file.file_type.startswith("image/"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="대표 이미지는 image/* 타입 파일만 지정할 수 있습니다.",
+            )
+        return thumbnail_file_id
+
+    for file_id in file_ids:
+        file_obj = files_by_id.get(file_id)
+        if file_obj and file_obj.file_type.startswith("image/"):
+            return file_id
+
+    return None
+
+
+def get_post_thumbnail_map(db: Session, posts):
+    if not posts:
+        return {}
+
+    thumbnail_by_post_id = {}
+    explicit_file_ids = [
+        post.thumbnail_file_id
+        for post in posts
+        if post.thumbnail_file_id is not None
+    ]
+
+    if explicit_file_ids:
+        explicit_files = (
+            db.query(File)
+            .filter(File.id.in_(explicit_file_ids))
+            .all()
+        )
+        explicit_files_by_id = {file.id: file for file in explicit_files}
+
+        for post in posts:
+            file_obj = explicit_files_by_id.get(post.thumbnail_file_id)
+            thumbnail = build_thumbnail_image(file_obj)
+            if thumbnail:
+                thumbnail_by_post_id[post.id] = thumbnail
+
+    missing_post_ids = [
+        post.id
+        for post in posts
+        if post.id not in thumbnail_by_post_id
+    ]
+
+    if missing_post_ids:
+        fallback_rows = (
+            db.query(PostFile.post_id, File)
+            .join(File, PostFile.file_id == File.id)
+            .filter(
+                PostFile.post_id.in_(missing_post_ids),
+                File.file_type.like("image/%"),
+            )
+            .order_by(PostFile.post_id.asc(), PostFile.file_id.asc())
+            .all()
+        )
+
+        for post_id, file_obj in fallback_rows:
+            if post_id not in thumbnail_by_post_id:
+                thumbnail_by_post_id[post_id] = build_thumbnail_image(file_obj)
+
+    return thumbnail_by_post_id
+
 def get_latest_posts(db: Session, limit: int = 3):
     """
     메인 페이지 최신 게시글 조회 - 댓글 수 join 포함
     """
-    return (
+    rows = (
         db.query(
             Post,
             Role.role_name,
@@ -42,6 +151,14 @@ def get_latest_posts(db: Session, limit: int = 3):
         .limit(limit)
         .all()
     )
+
+    posts = [post for post, _, _ in rows]
+    thumbnail_map = get_post_thumbnail_map(db, posts)
+
+    return [
+        (post, role_name, comment_count, thumbnail_map.get(post.id))
+        for post, role_name, comment_count in rows
+    ]
 
 
 
@@ -98,7 +215,7 @@ def get_notice_list(db: Session, limit: int = 10):
     - limit(): 한 페이지당 최대 10개 출력 스펙 충족
     - 데이터가 존재하지 않을 경우 빈 리스트([])를 정상 반환하여 프론트엔드 예외 처리 유도
     """
-    return (
+    posts = (
         db.query(Post)
         .filter(Post.category == PostCategory.NOTICE.value)
         .order_by(Post.created_at.desc())
@@ -106,17 +223,38 @@ def get_notice_list(db: Session, limit: int = 10):
         .all()
     )
 
+    thumbnail_map = get_post_thumbnail_map(db, posts)
+
+    return [
+        apply_thumbnail_fields(
+            {
+                "id": post.id,
+                "title": post.title,
+                "created_at": post.created_at,
+            },
+            thumbnail_map.get(post.id),
+        )
+        for post in posts
+    ]
+
 #=============================
 # Post_001 공지사항 및 자유게시판 작성, 수정, 삭제 기능 --> 수정자 : 엄인섭
 def create_post(db: Session, post_data: PostCreate, user_id: int):
     """
     [이슈 5, 8 해결] 게시글 생성 및 다중 파일 매핑, 일정 데이터 적재
     """
+    thumbnail_file_id = select_thumbnail_file_id(
+        db=db,
+        file_ids=post_data.file_ids,
+        thumbnail_file_id=post_data.thumbnail_file_id,
+    )
+
     # 1. 게시글 본문 데이터 생성 (시작일, 종료일 포함)
     db_post = Post(
         category=post_data.post_type,
         title=post_data.title,
         content=post_data.content,
+        thumbnail_file_id=thumbnail_file_id,
         start_date=post_data.start_date,
         end_date=post_data.end_date,
         user_id=user_id
@@ -191,14 +329,21 @@ def get_free_posts(db: Session, page: int = 1, limit: int = 10):
         .limit(limit)
         .all()
     )
+
+    posts = [post for post, _, _ in rows]
+    thumbnail_map = get_post_thumbnail_map(db, posts)
+
     return [
-        {
-            "id": post.id,
-            "title": post.title,
-            "created_at": post.created_at,
-            "like_count": like_count,
-            "comment_count": comment_count,
-        }
+        apply_thumbnail_fields(
+            {
+                "id": post.id,
+                "title": post.title,
+                "created_at": post.created_at,
+                "like_count": like_count,
+                "comment_count": comment_count,
+            },
+            thumbnail_map.get(post.id),
+        )
         for post, like_count, comment_count in rows
     ]
 
@@ -254,14 +399,21 @@ def get_question_posts(db: Session, page: int = 1, limit: int = 10):
         .limit(limit)
         .all()
     )
+
+    posts = [post for post, _, _ in rows]
+    thumbnail_map = get_post_thumbnail_map(db, posts)
+
     return [
-        {
-            "id": post.id,
-            "title": post.title,
-            "created_at": post.created_at,
-            "like_count": like_count,
-            "comment_count": comment_count,
-        }
+        apply_thumbnail_fields(
+            {
+                "id": post.id,
+                "title": post.title,
+                "created_at": post.created_at,
+                "like_count": like_count,
+                "comment_count": comment_count,
+            },
+            thumbnail_map.get(post.id),
+        )
         for post, like_count, comment_count in rows
     ]
 
@@ -484,16 +636,24 @@ def get_all_posts_optimized(db: Session, page: int = 1, limit: int = 10):
         .limit(limit)
         .all()
     )
-    
+
+    posts = [post for post, _, _ in query]
+    thumbnail_map = get_post_thumbnail_map(db, posts)
+
     result = []
     for post, like_count, comment_count in query:
-        result.append({
-            "id": post.id,
-            "category": post.category,
-            "title": post.title,
-            "created_at": post.created_at,
-            "like_count": like_count,
-            "comment_count": comment_count,
-        })
-        
+        result.append(
+            apply_thumbnail_fields(
+                {
+                    "id": post.id,
+                    "category": post.category,
+                    "title": post.title,
+                    "created_at": post.created_at,
+                    "like_count": like_count,
+                    "comment_count": comment_count,
+                },
+                thumbnail_map.get(post.id),
+            )
+        )
+
     return result

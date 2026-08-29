@@ -17,6 +17,7 @@ class Post(Base):
     category: Mapped[str] = mapped_column(String(7))
     title: Mapped[str] = mapped_column(String(200))
     content: Mapped[str] = mapped_column(Text)
+    thumbnail_file_id: Mapped[Optional[int]] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # [이슈 8번 해결] 일정 관리를 위한 시작 날짜 및 종료 날짜 컬럼 추가 (Nullable)
@@ -24,6 +25,7 @@ class Post(Base):
     end_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship()
+    thumbnail_file: Mapped[Optional["File"]] = relationship("File", foreign_keys=[thumbnail_file_id])
     comments: Mapped[List["Comment"]] = relationship(back_populates="post", cascade="all, delete-orphan")
     likes: Mapped[List["Like"]] = relationship(back_populates="post", cascade="all, delete-orphan")
     post_files: Mapped[List["PostFile"]] = relationship(back_populates="post", cascade="all, delete-orphan")
