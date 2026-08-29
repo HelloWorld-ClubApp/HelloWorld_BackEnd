@@ -1,13 +1,13 @@
 """add post thumbnail file id
 
-Revision ID: add_post_thumbnail_file_id_20260830
+Revision ID: add_post_thumb_20260830
 Revises: drop_post_schedule_date_20260827
 Create Date: 2026-08-30 00:00:00.000000
 """
 from alembic import op  # type: ignore[attr-defined]
 
 
-revision = "add_post_thumbnail_file_id_20260830"
+revision = "add_post_thumb_20260830"
 down_revision = "drop_post_schedule_date_20260827"
 branch_labels = None
 depends_on = None
