@@ -44,6 +44,48 @@ def create_user(db: Session, user_in: UserCreate, default_role_id: int = 1):
     return db_user
 
 
+def normalize_file_url(file_url: Optional[str]) -> Optional[str]:
+    if not file_url:
+        return None
+
+    normalized_url = file_url.replace("\\", "/")
+    if normalized_url.startswith("uploads/"):
+        return f"/{normalized_url}"
+    return normalized_url
+
+
+def get_my_profile(db: Session, user_id: int):
+    row = (
+        db.query(User, Role.role_name, File.file_url)
+        .join(Role, User.role_id == Role.id)
+        .outerjoin(File, User.file_id == File.id)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if not row:
+        return None
+
+    user, role_name, profile_image_url = row
+    current_year = datetime.date.today().year
+    grade = max(1, current_year - user.admission_year + 1)
+
+    return {
+        "id": user.id,
+        "student_id": user.student_id,
+        "email": user.email,
+        "name": user.display_name,
+        "admission_year": user.admission_year,
+        "grade": grade,
+        "status": user.status,
+        "phone": user.phone,
+        "role_id": user.role_id,
+        "role_name": role_name,
+        "profile_image_url": normalize_file_url(profile_image_url),
+        "join_status": user.join_status,
+    }
+
+
 
 
 def get_club_members_grouped(db: Session, see_all: bool = False):
@@ -97,8 +139,8 @@ def get_club_members_grouped(db: Session, see_all: bool = False):
 
     # 5. UI 순서에 맞게 고학년(2학년)이 먼저 나오도록 리스트 정렬
     result = list(grouped_data.values())
-    result.sort(key=lambda x: x["grade"], reverse=True) 
-    
+    result.sort(key=lambda x: x["grade"], reverse=True)
+
     return result
 
 

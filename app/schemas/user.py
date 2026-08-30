@@ -93,6 +93,24 @@ class UserProfileHeaderResponse(BaseModel):
         from_attributes = True
 
 
+class UserMeResponse(BaseModel):
+    id: int = Field(..., description="사용자 ID")
+    student_id: str = Field(..., description="학번")
+    email: str = Field(..., description="이메일")
+    name: str = Field(..., description="이름")
+    admission_year: int = Field(..., description="입학년도")
+    grade: int = Field(..., description="현재 학년")
+    status: str = Field(..., description="학적 상태")
+    phone: str = Field(..., description="전화번호")
+    role_id: int = Field(..., description="역할 ID")
+    role_name: str = Field(..., description="동아리 역할명")
+    profile_image_url: Optional[str] = Field(None, description="프로필 이미지 URL")
+    join_status: str = Field(..., description="가입 승인 상태")
+
+    class Config:
+        from_attributes = True
+
+
 class MemberInfo(BaseModel):
     id: int = Field(..., description="유저 고유 ID")
     name: str = Field(..., description="이름")

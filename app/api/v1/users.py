@@ -13,6 +13,7 @@ from app.schemas.user import (
     JoinRequestCountResponse,
     JoinRequestSummaryResponse,
     JoinRequestUserResponse,
+    UserMeResponse,
     UserProfileHeaderResponse,
     MemberGroupResponse,
     UserResponse,
@@ -70,6 +71,17 @@ def withdraw_user(
     사용자 탈퇴 시 유의사항 동의 후, 현재 비밀번호를 입력받아 검증 후 Soft Delete 처리합니다.
     """
     return user_service.withdraw_user_account(db, current_user, request.current_password)
+
+
+@router.get("/me", response_model=UserMeResponse, summary="내 프로필 상세 조회")
+def get_my_profile_api(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    profile = crud_user.get_my_profile(db=db, user_id=current_user.id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+    return profile
 
 
 @router.get("/search", response_model=List[UserResponse], summary="사용자 검색")
