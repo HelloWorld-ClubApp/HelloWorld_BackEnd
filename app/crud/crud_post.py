@@ -45,7 +45,7 @@ def apply_thumbnail_fields(data, thumbnail_image):
 
 
 def select_thumbnail_file_id(db: Session, file_ids, thumbnail_file_id):
-    file_ids = list(file_ids or [])
+    file_ids = list(dict.fromkeys(file_ids or []))
 
     if thumbnail_file_id is not None and thumbnail_file_id not in file_ids:
         raise HTTPException(
@@ -79,6 +79,60 @@ def select_thumbnail_file_id(db: Session, file_ids, thumbnail_file_id):
             return file_id
 
     return None
+
+
+def ensure_files_exist(db: Session, file_ids) -> None:
+    if not file_ids:
+        return
+
+    file_rows = (
+        db.query(File.id)
+        .filter(File.id.in_(file_ids))
+        .all()
+    )
+    valid_file_ids = {file_id for (file_id,) in file_rows}
+    missing_file_ids = set(file_ids) - valid_file_ids
+
+    if missing_file_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"존재하지 않는 파일 ID가 포함되어 있습니다: {sorted(missing_file_ids)}",
+        )
+
+
+def get_post_file_ids(db: Session, post_id: int):
+    rows = (
+        db.query(PostFile.file_id)
+        .filter(PostFile.post_id == post_id)
+        .all()
+    )
+    return [file_id for (file_id,) in rows]
+
+
+def sync_post_files(db: Session, post_id: int, file_ids):
+    requested_file_ids = list(dict.fromkeys(file_ids or []))
+    existing_file_ids = set(get_post_file_ids(db, post_id))
+    requested_file_id_set = set(requested_file_ids)
+
+    ensure_files_exist(db, requested_file_ids)
+
+    removed_file_ids = existing_file_ids - requested_file_id_set
+    if removed_file_ids:
+        (
+            db.query(PostFile)
+            .filter(
+                PostFile.post_id == post_id,
+                PostFile.file_id.in_(removed_file_ids),
+            )
+            .delete(synchronize_session=False)
+        )
+
+    new_file_ids = requested_file_id_set - existing_file_ids
+    for file_id in requested_file_ids:
+        if file_id in new_file_ids:
+            db.add(PostFile(post_id=post_id, file_id=file_id))
+
+    return requested_file_ids
 
 
 def get_post_thumbnail_map(db: Session, posts):
@@ -167,6 +221,13 @@ def get_latest_posts(db: Session, limit: int = 3):
         )
         .join(User, Post.user_id == User.id)
         .join(Role, User.role_id == Role.id)
+        .filter(
+            Post.category.in_([
+                PostCategory.NOTICE.value,
+                PostCategory.FREE.value,
+                PostCategory.QNA.value,
+            ])
+        )
         .outerjoin(Comment, Post.id == Comment.post_id)
         .group_by(Post.id, Role.role_name)
         .order_by(
@@ -268,9 +329,11 @@ def create_post(db: Session, post_data: PostCreate, user_id: int):
     """
     [이슈 5, 8 해결] 게시글 생성 및 다중 파일 매핑, 일정 데이터 적재
     """
+    file_ids = list(dict.fromkeys(post_data.file_ids or []))
+    ensure_files_exist(db, file_ids)
     thumbnail_file_id = select_thumbnail_file_id(
         db=db,
-        file_ids=post_data.file_ids,
+        file_ids=file_ids,
         thumbnail_file_id=post_data.thumbnail_file_id,
     )
 
@@ -288,8 +351,8 @@ def create_post(db: Session, post_data: PostCreate, user_id: int):
     db.flush() # post.id를 즉시 추출하기 위해 flush 실행 (commit 아님)
 
     # 2. [이슈 5번 해결] 다중 파일 ID가 존재할 경우 post_files 매핑 테이블에 일괄 등록
-    if post_data.file_ids:
-        for file_id in post_data.file_ids:
+    if file_ids:
+        for file_id in file_ids:
             db_post_file = PostFile(
                 post_id=db_post.id,
                 file_id=file_id

@@ -79,12 +79,30 @@ def update_integrated_post_api(
     # 3. 통합 업데이트 수행 (schedule_date 제거 -> start_date, end_date 반영)
     db_post.title = post_in.title
     db_post.content = post_in.content
-    if post_in.thumbnail_file_id is not None:
+    file_ids_provided = "file_ids" in post_in.model_fields_set
+    thumbnail_file_id_provided = "thumbnail_file_id" in post_in.model_fields_set
+
+    if file_ids_provided:
+        synced_file_ids = crud_post.sync_post_files(
+            db=db,
+            post_id=db_post.id,
+            file_ids=post_in.file_ids,
+        )
         db_post.thumbnail_file_id = crud_post.select_thumbnail_file_id(
             db=db,
-            file_ids=post_in.file_ids,
+            file_ids=synced_file_ids,
             thumbnail_file_id=post_in.thumbnail_file_id,
         )
+    elif thumbnail_file_id_provided:
+        if post_in.thumbnail_file_id is None:
+            db_post.thumbnail_file_id = None
+        else:
+            existing_file_ids = crud_post.get_post_file_ids(db=db, post_id=db_post.id)
+            db_post.thumbnail_file_id = crud_post.select_thumbnail_file_id(
+                db=db,
+                file_ids=existing_file_ids,
+                thumbnail_file_id=post_in.thumbnail_file_id,
+            )
     db_post.start_date = post_in.start_date
     db_post.end_date = post_in.end_date
 
