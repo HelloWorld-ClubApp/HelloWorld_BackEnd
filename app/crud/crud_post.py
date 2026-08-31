@@ -12,6 +12,16 @@ from app.schemas.post import PostCreate
 from app.core.enum.post import PostCategory
 from app.models.post import Comment
 
+ADMIN_ROLE_ID = 2
+NOTICE_ALLOWED_ROLE_IDS = {2, 3, 4, 5}
+
+
+def can_delete_post(post: Post, user_id, role_id) -> bool:
+    if post.category == PostCategory.NOTICE.value:
+        return role_id in NOTICE_ALLOWED_ROLE_IDS
+    return post.user_id == user_id or role_id == ADMIN_ROLE_ID
+
+
 def normalize_file_url(file_url: str) -> str:
     normalized_url = file_url.replace("\\", "/")
     if normalized_url.startswith("uploads/"):
@@ -511,7 +521,13 @@ def get_question_posts(db: Session, page: int = 1, limit: int = 10):
 
 #=============================
 # Post_003 질문게시판 수정, 삭제
-def get_activity_posts(db: Session, page: int = 1, limit: int = 10):
+def get_activity_posts(
+    db: Session,
+    page: int = 1,
+    limit: int = 10,
+    current_user_id=None,
+    current_user_role_id=None,
+):
     offset = (page - 1) * limit
     rows = (
         db.query(
@@ -545,6 +561,11 @@ def get_activity_posts(db: Session, page: int = 1, limit: int = 10):
                 "like_count": like_count,
                 "comment_count": comment_count,
                 "images": images_map.get(post.id, []),
+                "can_delete": can_delete_post(
+                    post=post,
+                    user_id=current_user_id,
+                    role_id=current_user_role_id,
+                ),
             },
             thumbnail_map.get(post.id),
         )

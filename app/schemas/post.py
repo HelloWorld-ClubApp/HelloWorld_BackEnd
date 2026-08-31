@@ -207,6 +207,7 @@ class ActivityPostResponse(BaseModel):
     thumbnail_url: Optional[str] = None
     thumbnail_image: Optional[PostThumbnailResponse] = None
     images: List[PostThumbnailResponse] = Field(default_factory=list)
+    can_delete: bool = False
 
     class Config:
         from_attributes = True

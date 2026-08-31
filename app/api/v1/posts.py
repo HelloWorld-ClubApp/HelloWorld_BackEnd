@@ -14,7 +14,7 @@ from app.core.enum.post import PostCategory
 router = APIRouter()
 
 # 임원진 및 관리자 권한 ID 목록 (2: 관리자, 3: 회장, 4: 부회장, 5: 총무)
-NOTICE_ALLOWED_ROLE_IDS = [2, 3, 4, 5]
+NOTICE_ALLOWED_ROLE_IDS = crud_post.NOTICE_ALLOWED_ROLE_IDS
 
 @router.get("/latest", response_model=List[PostPreviewResponse])
 def get_latest_posts(db: Session = Depends(get_db)):
@@ -176,20 +176,15 @@ def delete_notice_api(
             detail="해당 게시글을 찾을 수 없습니다."
         )
 
-    # 2. 권한 검사: 공지사항 삭제는 임원진 및 관리자만 가능
-    if db_post.category == "공지":
-        if getattr(current_user, "role_id", None) not in NOTICE_ALLOWED_ROLE_IDS:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="공지를 삭제할 권한이 없습니다."
-            )
-    else:
-        # 3. 일반 게시글 삭제는 작성자 본인 또는 관리자(role_id=2)만 가능
-        if db_post.user_id != current_user.id and getattr(current_user, "role_id", None) != 2:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="본인이 작성한 게시글만 삭제할 수 있습니다."
-            )
+    if not crud_post.can_delete_post(
+        post=db_post,
+        user_id=current_user.id,
+        role_id=getattr(current_user, "role_id", None),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="게시글을 삭제할 권한이 없습니다."
+        )
 
     # 4. 검증 완료 후 삭제 수행
     crud_post.delete_notice_post(db=db, post_id=post_id)
@@ -239,9 +234,11 @@ def delete_free_post_api(
     if not post or post.category != "일반":
         raise HTTPException(status_code=404, detail="게시글을 찾을 수 없습니다.")
 
-    # 권한 체크: 본인 또는 관리자(role_id=2 가정)만 삭제 가능
-    # (실제 관리자 role 값에 맞춰 수정 필요)
-    if post.user_id != current_user.id and current_user.role_id != 2:
+    if not crud_post.can_delete_post(
+        post=post,
+        user_id=current_user.id,
+        role_id=getattr(current_user, "role_id", None),
+    ):
         raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
 
     crud_post.delete_free_post(db=db, post_id=post_id)
@@ -277,8 +274,18 @@ def get_question_post_list(page: int = 1, db: Session = Depends(get_db)):
 #=============================
 # Post_003 질문게시판 작성/수정/삭제 API 추가
 @router.get("/activity", response_model=ActivityPostListResponse, summary="동아리활동 목록 조회")
-def get_activity_post_list(page: int = 1, db: Session = Depends(get_db)):
-    posts_data = crud_post.get_activity_posts(db=db, page=page, limit=10)
+def get_activity_post_list(
+    page: int = 1,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    posts_data = crud_post.get_activity_posts(
+        db=db,
+        page=page,
+        limit=10,
+        current_user_id=current_user.id,
+        current_user_role_id=getattr(current_user, "role_id", None),
+    )
 
     if not posts_data:
         return {"message": "등록된 게시글이 없습니다.", "posts": []}
@@ -328,8 +335,11 @@ def delete_question_post_api(
     if not post or post.category != "질문":
         raise HTTPException(status_code=404, detail="해당 질문 게시글을 찾을 수 없습니다.")
 
-    # 권한 체크: 본인 또는 최고 관리자(role_id=2 가정)만 삭제 가능
-    if post.user_id != current_user.id and getattr(current_user, 'role_id', None) != 2:
+    if not crud_post.can_delete_post(
+        post=post,
+        user_id=current_user.id,
+        role_id=getattr(current_user, "role_id", None),
+    ):
         raise HTTPException(status_code=403, detail="질문 게시글을 삭제할 권한이 없습니다.")
 
     crud_post.delete_question_post(db=db, post_id=post_id)
