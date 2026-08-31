@@ -29,6 +29,7 @@ def get_latest_posts(db: Session = Depends(get_db)):
             "category": post.category,
             "author_role": role_name, # 회장/부회장 정보
             "created_at": post.created_at,
+            "activity_date": post.activity_date,
             "comment_count": comment_count,
             "thumbnail_image": thumbnail_image,
             "thumbnail_file_id": thumbnail_image["id"] if thumbnail_image else None,
@@ -105,6 +106,7 @@ def update_integrated_post_api(
             )
     db_post.start_date = post_in.start_date
     db_post.end_date = post_in.end_date
+    db_post.activity_date = post_in.activity_date
 
     db.commit()
     db.refresh(db_post)
@@ -396,6 +398,7 @@ def get_post_detail_api(
                 "title": post.title,
                 "content": post.content,
                 "thumbnail_file_id": post.thumbnail_file_id,
+                "activity_date": post.activity_date,
                 "start_date": post.start_date,
                 "end_date": post.end_date,
                 "created_at": post.created_at,

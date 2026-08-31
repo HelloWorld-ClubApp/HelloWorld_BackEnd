@@ -65,8 +65,9 @@ class User(Base):
     status: Mapped[str] = mapped_column(CHAR(2), default='재학') # 학적 상태
     phone: Mapped[str] = mapped_column(String(13)) # 휴대폰 번호
     admission_year: Mapped[int] = mapped_column(SmallInteger) # 입학 연도
-    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)  
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     join_status: Mapped[str] = mapped_column(String(10), default=JoinStatus.APPROVED.value, server_default=JoinStatus.APPROVED.value)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # [스마트 프로퍼티] 이름 마스킹

@@ -317,6 +317,7 @@ def get_notice_list(db: Session, limit: int = 10):
                 "id": post.id,
                 "title": post.title,
                 "created_at": post.created_at,
+                "activity_date": post.activity_date,
             },
             thumbnail_map.get(post.id),
         )
@@ -343,6 +344,7 @@ def create_post(db: Session, post_data: PostCreate, user_id: int):
         title=post_data.title,
         content=post_data.content,
         thumbnail_file_id=thumbnail_file_id,
+        activity_date=post_data.activity_date,
         start_date=post_data.start_date,
         end_date=post_data.end_date,
         user_id=user_id
@@ -427,6 +429,7 @@ def get_free_posts(db: Session, page: int = 1, limit: int = 10):
                 "id": post.id,
                 "title": post.title,
                 "created_at": post.created_at,
+                "activity_date": post.activity_date,
                 "like_count": like_count,
                 "comment_count": comment_count,
             },
@@ -497,6 +500,7 @@ def get_question_posts(db: Session, page: int = 1, limit: int = 10):
                 "id": post.id,
                 "title": post.title,
                 "created_at": post.created_at,
+                "activity_date": post.activity_date,
                 "like_count": like_count,
                 "comment_count": comment_count,
             },
@@ -519,7 +523,7 @@ def get_activity_posts(db: Session, page: int = 1, limit: int = 10):
         .outerjoin(Like, Post.id == Like.post_id)
         .outerjoin(Comment, Post.id == Comment.post_id)
         .group_by(Post.id)
-        .order_by(Post.created_at.desc())
+        .order_by(func.coalesce(Post.activity_date, Post.created_at).desc())
         .offset(offset)
         .limit(limit)
         .all()
@@ -537,6 +541,7 @@ def get_activity_posts(db: Session, page: int = 1, limit: int = 10):
                 "category": post.category,
                 "title": post.title,
                 "created_at": post.created_at,
+                "activity_date": post.activity_date,
                 "like_count": like_count,
                 "comment_count": comment_count,
                 "images": images_map.get(post.id, []),
@@ -778,6 +783,7 @@ def get_all_posts_optimized(db: Session, page: int = 1, limit: int = 10):
                     "category": post.category,
                     "title": post.title,
                     "created_at": post.created_at,
+                    "activity_date": post.activity_date,
                     "like_count": like_count,
                     "comment_count": comment_count,
                 },

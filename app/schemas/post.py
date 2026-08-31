@@ -10,6 +10,7 @@ class PostPreviewResponse(BaseModel):
     category: str = Field(..., description="게시판 카테고리 (예: 공지, 일반, 질문)")
     author_role: str = Field(..., description="작성자 역할 (예: 회장, 부회장, 일반)")
     created_at: datetime = Field(..., description="게시글 생성(작성) 날짜 및 시간")
+    activity_date: Optional[datetime] = None
     comment_count: int = Field(0, description="댓글 수")
     thumbnail_file_id: Optional[int] = None
     thumbnail_url: Optional[str] = None
@@ -46,6 +47,7 @@ class NoticeResponse(BaseModel):
     id: int = Field(..., description="게시글 고유 번호 (상세 페이지 이동 시 사용 필수)")
     title: str = Field(..., description="게시글 제목 (프론트엔드에서 말줄임표 처리)")
     created_at: datetime = Field(..., description="게시글 생성 날짜 및 시간")
+    activity_date: Optional[datetime] = None
     thumbnail_file_id: Optional[int] = None
     thumbnail_url: Optional[str] = None
     thumbnail_image: Optional[PostThumbnailResponse] = None
@@ -74,6 +76,7 @@ class PostCreate(BaseModel):
     # [이슈 5번 해결] 단일 이미지 URL 대신 다중 파일 고유번호 목록 수신
     file_ids: List[int] = Field(default=[], description="첨부할 파일/사진 고유 ID 목록")
     thumbnail_file_id: Optional[int] = Field(None, description="대표 이미지로 사용할 파일 ID. 비우면 file_ids 중 첫 이미지 파일을 대표로 사용")
+    activity_date: Optional[datetime] = Field(None, description="동아리활동 날짜. 과거/미래 제한 없이 저장")
     
     # [이슈 8번 해결] 일정 시작일 및 마감일
     start_date: Optional[datetime] = Field(None, description="일정 시작 날짜 및 시간")
@@ -85,6 +88,13 @@ class PostCreate(BaseModel):
         """필수 항목 누락 및 공백 입력 방지"""
         if not value or not value.strip():
             raise ValueError("필수 항목을 입력하세요.")
+        return value
+
+    @field_validator('activity_date', mode='before')
+    @classmethod
+    def parse_activity_date(cls, value):
+        if isinstance(value, str) and len(value) == 10:
+            return dt.fromisoformat(f"{value}T00:00:00")
         return value
 
     @model_validator(mode='after')
@@ -120,6 +130,7 @@ class FreePostResponse(BaseModel):
     id: int
     title: str
     created_at: datetime
+    activity_date: Optional[datetime] = None
     like_count: int = Field(0, description="좋아요 수")
     comment_count: int = Field(0, description="댓글 수")
     thumbnail_file_id: Optional[int] = None
@@ -168,6 +179,7 @@ class QuestionPostResponse(BaseModel):
     id: int
     title: str
     created_at: datetime
+    activity_date: Optional[datetime] = None
     like_count: int = Field(0, description="좋아요 수")
     comment_count: int = Field(0, description="댓글 수")
     thumbnail_file_id: Optional[int] = None
@@ -188,6 +200,7 @@ class ActivityPostResponse(BaseModel):
     category: str
     title: str
     created_at: datetime
+    activity_date: Optional[datetime] = None
     like_count: int = Field(0, description="좋아요 수")
     comment_count: int = Field(0, description="댓글 수")
     thumbnail_file_id: Optional[int] = None
@@ -242,6 +255,7 @@ class PostListResponse(BaseModel):
     category: str = Field(..., description="게시판 카테고리")
     title: str = Field(..., description="게시글 제목")
     created_at: datetime = Field(..., description="게시글 작성 일시")
+    activity_date: Optional[datetime] = None
     like_count: int = Field(0, description="총 좋아요 수")
     comment_count: int = Field(0, description="총 댓글 수")
     thumbnail_file_id: Optional[int] = None
@@ -287,6 +301,7 @@ class PostDetailInfo(BaseModel):
     title: str = Field(..., description="게시글 제목")
     content: str = Field(..., description="게시글 내용")
     thumbnail_file_id: Optional[int] = None
+    activity_date: Optional[datetime] = None
     start_date: Optional[datetime] = Field(None, description="일정 시작 날짜")
     end_date: Optional[datetime] = Field(None, description="일정 종료 날짜")
     created_at: datetime = Field(..., description="게시글 작성 시간")

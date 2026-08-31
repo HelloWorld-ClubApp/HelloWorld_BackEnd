@@ -36,7 +36,8 @@ def create_user(db: Session, user_in: UserCreate, default_role_id: int = 1):
         role_id=default_role_id, # 기본 역할 부여 (1 = 일반 회원 가정)
         status="재학",
         phone="010-0000-0000", # UI에 없으므로 기본값 세팅 (나중에 마이페이지에서 수정)
-        join_status=JoinStatus.PENDING.value
+        join_status=JoinStatus.PENDING.value,
+        requested_at=datetime.datetime.now(datetime.timezone.utc)
     )
     db.add(db_user)
     db.commit()
@@ -162,7 +163,7 @@ def get_pending_join_requests(db: Session, skip: int = 0, limit: int = 50):
     return db.query(User).filter(
         User.is_deleted == False,
         User.join_status == JoinStatus.PENDING.value,
-    ).order_by(User.created_at.asc()).offset(skip).limit(limit).all()
+    ).order_by(User.requested_at.asc()).offset(skip).limit(limit).all()
 
 
 def approve_join_request(db: Session, user: User):

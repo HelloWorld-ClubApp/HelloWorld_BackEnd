@@ -18,6 +18,7 @@ class Post(Base):
     title: Mapped[str] = mapped_column(String(200))
     content: Mapped[str] = mapped_column(Text)
     thumbnail_file_id: Mapped[Optional[int]] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"), nullable=True)
+    activity_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # [이슈 8번 해결] 일정 관리를 위한 시작 날짜 및 종료 날짜 컬럼 추가 (Nullable)

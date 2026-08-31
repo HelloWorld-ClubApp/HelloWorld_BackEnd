@@ -9,6 +9,7 @@ from fastapi import UploadFile
 from app.services import file_service
 from app.core.enum.user import JoinStatus
 from typing import Optional
+import datetime
 
 def withdraw_user_account(db: Session, current_user: User, password_input: str):
     """
@@ -77,7 +78,7 @@ def get_pending_join_requests(db: Session, skip: int = 0, limit: int = 50):
             "id": user.id,
             "name": user.name,
             "admission_year": user.admission_year,
-            "requested_at": user.created_at,
+            "requested_at": user.requested_at or user.created_at or datetime.datetime.now(datetime.timezone.utc),
         }
         for user in users
     ]
