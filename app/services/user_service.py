@@ -8,7 +8,8 @@ from app.core.security import verify_password
 from fastapi import UploadFile
 from app.services import file_service
 from app.core.enum.user import JoinStatus
-from typing import Optional
+from typing import Optional, List
+import json
 import datetime
 
 def withdraw_user_account(db: Session, current_user: User, password_input: str):
@@ -32,7 +33,50 @@ def withdraw_user_account(db: Session, current_user: User, password_input: str):
 # [MY_001] 프로필 수정 (이미지 검증 및 회원 상태 업데이트)
 # 작성자 : 천석훈, 김세연, 문호성, 강기민
 # ==========================================
-def update_profile_service(db: Session, current_user: User, status_in: str, profile_image: Optional[UploadFile] = None):
+def normalize_hashtags(hashtags: Optional[List[str]]) -> Optional[List[str]]:
+    if hashtags is None:
+        return None
+
+    normalized = []
+    for raw_hashtag in hashtags:
+        value = raw_hashtag.strip()
+        if not value:
+            continue
+
+        if value.startswith("[") and value.endswith("]"):
+            try:
+                parsed_value = json.loads(value)
+            except json.JSONDecodeError:
+                parsed_value = None
+
+            if isinstance(parsed_value, list):
+                normalized.extend(
+                    str(item).strip()
+                    for item in parsed_value
+                    if str(item).strip()
+                )
+                continue
+
+        if "," in value:
+            normalized.extend(
+                item.strip()
+                for item in value.split(",")
+                if item.strip()
+            )
+        else:
+            normalized.append(value)
+
+    return list(dict.fromkeys(normalized))
+
+
+def update_profile_service(
+    db: Session,
+    current_user: User,
+    status_in: Optional[str] = None,
+    profile_image: Optional[UploadFile] = None,
+    bio: Optional[str] = None,
+    hashtags: Optional[List[str]] = None,
+):
     """
     프론트엔드에서 넘어온 상태값과 이미지를 처리합니다.
     1. 이미지가 있다면 file_service로 10MB / 확장자 검증을 보냅니다.
@@ -47,15 +91,25 @@ def update_profile_service(db: Session, current_user: User, status_in: str, prof
         file_id = file_service.validate_and_upload_profile_image(db, profile_image)
         
     # 2. DB 업데이트 부서(CRUD)에 지시
-    crud_user.update_user_profile(
-        db=db, 
-        user_id=current_user.id, 
-        status_in=status_in, 
-        file_id=file_id
+    updated_user = crud_user.update_user_profile(
+        db=db,
+        user_id=current_user.id,
+        status_in=status_in,
+        file_id=file_id,
+        bio=bio,
+        hashtags=normalize_hashtags(hashtags)
     )
-    
+    if not updated_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자를 찾을 수 없습니다."
+        )
+
     # 3. [요구사항 반영] 프론트엔드에 성공 메시지 반환
-    return {"message": "변경이 완료되었습니다"}
+    return {
+        "message": "변경이 완료되었습니다",
+        "profile": crud_user.get_my_profile(db=db, user_id=current_user.id),
+    }
 
 
 def get_join_request_summary(db: Session):

@@ -1,7 +1,7 @@
 # 작성자 : 엄인섭 (2026-06-12)
 # 학번/이메일 중복 검사 쿼리
 import datetime
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy.orm import Session
 from app.models.user import User, Role
 from app.schemas.user import UserCreate
@@ -79,6 +79,8 @@ def get_my_profile(db: Session, user_id: int):
         "admission_year": user.admission_year,
         "grade": grade,
         "status": user.status,
+        "bio": user.bio,
+        "hashtags": user.hashtags or [],
         "phone": user.phone,
         "role_id": user.role_id,
         "role_name": role_name,
@@ -203,15 +205,27 @@ def soft_delete_user(db: Session, user_id: int):
 # [MY_001] 프로필 수정 (학적 상태 및 이미지 업데이트)
 # 작성자 : 천석훈, 김세연, 문호성, 강기민
 # ==========================================
-def update_user_profile(db: Session, user_id: int, status_in: str, file_id: Optional[int] = None):
+def update_user_profile(
+    db: Session,
+    user_id: int,
+    status_in: Optional[str] = None,
+    file_id: Optional[int] = None,
+    bio: Optional[str] = None,
+    hashtags: Optional[List[str]] = None,
+):
     """
     사용자의 학적 상태(status)와 프로필 이미지(file_id)를 업데이트합니다.
     새로운 이미지가 업로드되어 file_id가 전달된 경우에만 프로필 이미지를 갱신합니다.
     """
     user = db.query(User).filter(User.id == user_id).first()
     if user:
-        user.status = status_in
-        
+        if status_in is not None:
+            user.status = status_in
+        if bio is not None:
+            user.bio = bio
+        if hashtags is not None:
+            user.hashtags = hashtags
+
         # 파일이 새로 업로드된 경우에만 file_id 업데이트
         if file_id is not None:
             user.file_id = file_id

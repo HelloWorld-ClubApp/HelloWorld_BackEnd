@@ -101,6 +101,8 @@ class UserMeResponse(BaseModel):
     admission_year: int = Field(..., description="입학년도")
     grade: int = Field(..., description="현재 학년")
     status: str = Field(..., description="학적 상태")
+    bio: Optional[str] = Field(None, description="상태 메시지")
+    hashtags: List[str] = Field(default_factory=list, description="프로필 해시태그")
     phone: str = Field(..., description="전화번호")
     role_id: int = Field(..., description="역할 ID")
     role_name: str = Field(..., description="동아리 역할명")
@@ -165,7 +167,14 @@ class UserWithdrawRequest(BaseModel):
 # ==========================================
 class UserProfileUpdate(BaseModel):
     # Literal을 사용하면 "재학", "졸업", "취업" 외의 단어가 들어오면 Pydantic이 알아서 422 에러로 컷해버림!
-    status: Literal["재학", "졸업", "취업"] = Field(
-        ..., 
+    status: Optional[Literal["재학", "졸업", "취업"]] = Field(
+        None,
         description="학적 상태 (재학, 졸업, 취업 중 택 1)"
     )
+    bio: Optional[str] = Field(None, max_length=255, description="상태 메시지")
+    hashtags: List[str] = Field(default_factory=list, description="프로필 해시태그")
+
+
+class UserProfileUpdateResponse(BaseModel):
+    message: str
+    profile: UserMeResponse

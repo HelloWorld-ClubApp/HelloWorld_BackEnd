@@ -14,6 +14,7 @@ from app.schemas.user import (
     JoinRequestSummaryResponse,
     JoinRequestUserResponse,
     UserMeResponse,
+    UserProfileUpdateResponse,
     UserProfileHeaderResponse,
     MemberGroupResponse,
     UserResponse,
@@ -191,15 +192,24 @@ def get_club_members(
 # [MY_001] 프로필 수정 API (상태 및 이미지 변경)
 # 작성자 : 천석훈, 김세연, 문호성, 강기민
 # ==========================================
-@router.put("/me/profile", summary="[MY_001] 프로필 수정")
+@router.put("/me/profile", response_model=UserProfileUpdateResponse, summary="[MY_001] 프로필 수정")
 def update_my_profile(
     # JSON이 아니라 파일과 글자를 같이 보내야 해서(Form-Data), Form()을 씁니다!
-    status: Literal["재학", "졸업", "취업"] = Form(
-        ..., 
+    status: Optional[Literal["재학", "졸업", "취업"]] = Form(
+        None,
         description="학적 상태 (재학, 졸업, 취업 중 택 1)"
     ),
+    bio: Optional[str] = Form(
+        None,
+        max_length=255,
+        description="상태 메시지"
+    ),
+    hashtags: Optional[List[str]] = Form(
+        None,
+        description="프로필 해시태그. FormData에서 hashtags 키를 반복해서 전송"
+    ),
     profile_image: Optional[UploadFile] = File(
-        None, 
+        None,
         description="변경할 프로필 이미지 (10MB 이하, jpg/png)"
     ),
     db: Session = Depends(get_db), # DB 연결선 챙기기
@@ -215,7 +225,9 @@ def update_my_profile(
         db=db,
         current_user=current_user,
         status_in=status,
-        profile_image=profile_image
+        profile_image=profile_image,
+        bio=bio,
+        hashtags=hashtags,
     )
     
     # 2. 무사히 끝났으면 프론트엔드에게 성공 메시지 반환!
