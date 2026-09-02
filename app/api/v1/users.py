@@ -210,7 +210,11 @@ def update_my_profile(
     ),
     profile_image: Optional[UploadFile] = File(
         None,
-        description="변경할 프로필 이미지 (10MB 이하, jpg/png)"
+        description="변경할 프로필 이미지 (20MB 이하, jpg/png)"
+    ),
+    background_image: Optional[UploadFile] = File(
+        None,
+        description="변경할 프로필 배경 이미지 (20MB 이하, jpg/png)"
     ),
     db: Session = Depends(get_db), # DB 연결선 챙기기
     current_user = Depends(get_current_user) # 현재 접속 중인(로그인한) 사용자 확인
@@ -226,6 +230,7 @@ def update_my_profile(
         current_user=current_user,
         status_in=status,
         profile_image=profile_image,
+        background_image=background_image,
         bio=bio,
         hashtags=hashtags,
     )

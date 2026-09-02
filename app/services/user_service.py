@@ -74,12 +74,13 @@ def update_profile_service(
     current_user: User,
     status_in: Optional[str] = None,
     profile_image: Optional[UploadFile] = None,
+    background_image: Optional[UploadFile] = None,
     bio: Optional[str] = None,
     hashtags: Optional[List[str]] = None,
 ):
     """
     프론트엔드에서 넘어온 상태값과 이미지를 처리합니다.
-    1. 이미지가 있다면 file_service로 10MB / 확장자 검증을 보냅니다.
+    1. 이미지가 있다면 file_service로 용량 / 확장자 검증을 보냅니다.
     2. 검증이 끝나면 crud_user를 통해 DB를 최신화합니다.
     3. 요구사항에 명시된 성공 메시지를 반환합니다.
     """
@@ -87,8 +88,12 @@ def update_profile_service(
     
     # 1. 프론트엔드에서 프로필 이미지를 같이 보낸 경우에만 검사 및 저장 실행
     if profile_image:
-        # file_service가 10MB 이하, JPG/PNG 검사를 마치고 DB에 저장한 뒤 파일 고유 번호를 줌
+        # file_service가 용량, JPG/PNG 검사를 마치고 DB에 저장한 뒤 파일 고유 번호를 줌
         file_id = file_service.validate_and_upload_profile_image(db, profile_image)
+
+    background_file_id = None
+    if background_image:
+        background_file_id = file_service.validate_and_upload_profile_image(db, background_image)
         
     # 2. DB 업데이트 부서(CRUD)에 지시
     updated_user = crud_user.update_user_profile(
@@ -96,6 +101,7 @@ def update_profile_service(
         user_id=current_user.id,
         status_in=status_in,
         file_id=file_id,
+        background_file_id=background_file_id,
         bio=bio,
         hashtags=normalize_hashtags(hashtags)
     )

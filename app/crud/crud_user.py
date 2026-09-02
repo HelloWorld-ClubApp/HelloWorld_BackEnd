@@ -2,7 +2,7 @@
 # 학번/이메일 중복 검사 쿼리
 import datetime
 from typing import Optional, List
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from app.models.user import User, Role
 from app.schemas.user import UserCreate
 from app.core.security import get_password_hash # 보안 모듈에서 해시 함수를 가져옴
@@ -56,10 +56,13 @@ def normalize_file_url(file_url: Optional[str]) -> Optional[str]:
 
 
 def get_my_profile(db: Session, user_id: int):
+    ProfileFile = aliased(File)
+    BackgroundFile = aliased(File)
     row = (
-        db.query(User, Role.role_name, File.file_url)
+        db.query(User, Role.role_name, ProfileFile.file_url, BackgroundFile.file_url)
         .join(Role, User.role_id == Role.id)
-        .outerjoin(File, User.file_id == File.id)
+        .outerjoin(ProfileFile, User.file_id == ProfileFile.id)
+        .outerjoin(BackgroundFile, User.background_file_id == BackgroundFile.id)
         .filter(User.id == user_id)
         .first()
     )
@@ -67,7 +70,7 @@ def get_my_profile(db: Session, user_id: int):
     if not row:
         return None
 
-    user, role_name, profile_image_url = row
+    user, role_name, profile_image_url, background_image_url = row
     current_year = datetime.date.today().year
     grade = max(1, current_year - user.admission_year + 1)
 
@@ -85,6 +88,7 @@ def get_my_profile(db: Session, user_id: int):
         "role_id": user.role_id,
         "role_name": role_name,
         "profile_image_url": normalize_file_url(profile_image_url),
+        "background_image_url": normalize_file_url(background_image_url),
         "join_status": user.join_status,
     }
 
@@ -210,6 +214,7 @@ def update_user_profile(
     user_id: int,
     status_in: Optional[str] = None,
     file_id: Optional[int] = None,
+    background_file_id: Optional[int] = None,
     bio: Optional[str] = None,
     hashtags: Optional[List[str]] = None,
 ):
@@ -229,7 +234,9 @@ def update_user_profile(
         # 파일이 새로 업로드된 경우에만 file_id 업데이트
         if file_id is not None:
             user.file_id = file_id
-            
+        if background_file_id is not None:
+            user.background_file_id = background_file_id
+
         db.commit()
         db.refresh(user)
     return user

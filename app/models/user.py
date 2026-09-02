@@ -80,7 +80,8 @@ class User(Base):
     # 외래키 설정
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
     # Null이 허용되는 필드는 Optional[]을 사용하여 타입 힌트를 명확히 줍니다.
-    file_id: Mapped[Optional[int]] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"), nullable=True) 
+    file_id: Mapped[Optional[int]] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"), nullable=True)
+    background_file_id: Mapped[Optional[int]] = mapped_column(ForeignKey("files.id", ondelete="SET NULL"), nullable=True)
 
     # 양방향 관계 설정
     role: Mapped["Role"] = relationship(back_populates="users")

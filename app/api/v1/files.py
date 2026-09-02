@@ -1,23 +1,32 @@
 # 작성자 : 엄인섭
-import os
 from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
+from app.core.file_paths import (
+    MAX_UPLOAD_SIZE,
+    UPLOAD_DIR,
+    UPLOAD_URL_PREFIX,
+    build_upload_url,
+    ensure_upload_dir,
+)
 from app.crud import crud_file
 
 router = APIRouter()
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-UPLOAD_DIR = "uploads"
 
 
 def resolve_upload_path(file_url: str) -> Path:
     upload_root = Path(UPLOAD_DIR).resolve()
     normalized_url = file_url.replace("\\", "/").lstrip("/")
-    candidate = Path(normalized_url)
-    file_path = candidate if candidate.parts and candidate.parts[0] == UPLOAD_DIR else Path(UPLOAD_DIR) / candidate.name
+    upload_prefix = UPLOAD_URL_PREFIX.lstrip("/") + "/"
+    relative_path = (
+        normalized_url[len(upload_prefix):]
+        if normalized_url.startswith(upload_prefix)
+        else Path(normalized_url).name
+    )
+    file_path = Path(UPLOAD_DIR) / relative_path
     resolved_path = file_path.resolve()
 
     if resolved_path != upload_root and upload_root not in resolved_path.parents:
@@ -33,21 +42,21 @@ async def upload_file(
 ):
     # 1. 파일 크기 검사
     content = await file.read()
-    if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="10MB 이하의 파일만 전송할 수 있습니다.")
-    
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=400, detail="20MB 이하의 파일만 전송할 수 있습니다.")
+
     # 2. 파일 저장 (예시: 로컬 디렉토리 'uploads/')
     # 실제 환경에선 S3나 클라우드 스토리지를 권장합니다.
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    ensure_upload_dir()
     original_name = Path(file.filename or "upload").name
     stored_name = f"{uuid4().hex}{Path(original_name).suffix}"
-    file_path = os.path.join(UPLOAD_DIR, stored_name)
-    file_url = f"/uploads/{stored_name}"
+    file_path = Path(UPLOAD_DIR) / stored_name
+    file_url = build_upload_url(stored_name)
     file_type = file.content_type or "application/octet-stream"
-    
-    with open(file_path, "wb") as f:
+
+    with file_path.open("wb") as f:
         f.write(content)
-        
+
     # 3. DB에 메타데이터 저장
     file_obj = crud_file.create_file(
         db,
@@ -56,7 +65,7 @@ async def upload_file(
         size=len(content),
         name=original_name
     )
-    
+
     base_url = str(request.base_url).rstrip("/")
     return {
         "file_id": file_obj.id,

@@ -107,6 +107,7 @@ class UserMeResponse(BaseModel):
     role_id: int = Field(..., description="역할 ID")
     role_name: str = Field(..., description="동아리 역할명")
     profile_image_url: Optional[str] = Field(None, description="프로필 이미지 URL")
+    background_image_url: Optional[str] = Field(None, description="프로필 배경 이미지 URL")
     join_status: str = Field(..., description="가입 승인 상태")
 
     class Config:

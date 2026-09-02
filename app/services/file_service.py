@@ -1,11 +1,17 @@
-# 파일 용량(10MB) 검증 및 S3 업로드 로직
+# 파일 용량 검증 및 로컬 업로드 로직
 # 작성자 : 천석훈, 김세연, 문호성, 강기민
+from pathlib import Path
+from uuid import uuid4
 from fastapi import UploadFile, HTTPException, status
 from sqlalchemy.orm import Session
+from app.core.file_paths import (
+    MAX_UPLOAD_SIZE,
+    UPLOAD_DIR,
+    build_upload_url,
+    ensure_upload_dir,
+)
 from app.models.file import File
 
-# 10MB 용량 제한 (바이트 단위 계산: 10 * 1024 * 1024)
-MAX_FILE_SIZE = 10 * 1024 * 1024
 # 허용하는 확장자 규칙
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png"}
 
@@ -13,11 +19,12 @@ def validate_and_upload_profile_image(db: Session, file: UploadFile) -> int:
     """
     [MY_001] 프로필 이미지 검증 및 저장 후 DB의 file_id를 반환합니다.
     - 확장자 검증 (JPG, PNG)
-    - 파일 용량 검증 (10MB 이하)
+    - 파일 용량 검증
     """
     # 1. 파일 확장자 검증
     # 파일 이름(예: profile.png)에서 맨 뒤의 확장자만 소문자로 추출
-    file_extension = file.filename.split('.')[-1].lower() if '.' in file.filename else ""
+    original_name = Path(file.filename or "profile").name
+    file_extension = Path(original_name).suffix.lstrip(".").lower()
     
     if file_extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -30,23 +37,30 @@ def validate_and_upload_profile_image(db: Session, file: UploadFile) -> int:
     file.file.seek(0, 2)
     file_size = file.file.tell()
     file.file.seek(0)  # 용량만 재고 다시 저장을 위해 파일의 처음으로 커서 복귀
-    
-    if file_size > MAX_FILE_SIZE:
+
+    if file_size > MAX_UPLOAD_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="허용하지않는 이미지 규칙입니다"
+            detail="20MB 이하의 이미지만 전송할 수 있습니다."
         )
-        
-    # 3. 실제 파일 저장 로직 (현재는 S3 연동 전이므로 가상 URL 세팅)
-    # TODO: 프론트엔드 연동 테스트 후, 이곳에 진짜 AWS S3 업로드 코드를 추가하세요!
-    fake_file_url = f"https://s3.example.com/profiles/{file.filename}"
-    
+
+    ensure_upload_dir()
+    stored_name = f"{uuid4().hex}{Path(original_name).suffix}"
+    file_path = Path(UPLOAD_DIR) / stored_name
+    file_url = build_upload_url(stored_name)
+
+    content = file.file.read()
+    file.file.seek(0)
+
+    with file_path.open("wb") as upload_file:
+        upload_file.write(content)
+
     # 4. 데이터베이스 'files' 테이블에 방금 검증한 파일 정보 등록
     new_file = File(
-        file_url=fake_file_url,
-        file_type=file_extension,
+        file_url=file_url,
+        file_type=file.content_type or f"image/{file_extension}",
         file_size=file_size,
-        original_name=file.filename
+        original_name=original_name
     )
     db.add(new_file)
     db.commit()
