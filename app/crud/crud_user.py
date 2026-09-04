@@ -141,7 +141,7 @@ def get_club_members_grouped(db: Session, see_all: bool = False):
             "id": row.id,
             "name": row.name,
             "role_name": row.role_name,
-            "profile_image_url": row.file_url
+            "profile_image_url": normalize_file_url(row.file_url)
         })
 
     # 5. UI 순서에 맞게 고학년(2학년)이 먼저 나오도록 리스트 정렬

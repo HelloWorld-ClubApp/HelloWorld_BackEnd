@@ -170,7 +170,7 @@ def get_my_header_profile(
     if current_user.file_id:
         file_record = db.query(FileModel).filter(FileModel.id == current_user.file_id).first()
         if file_record:
-            profile_image_url = file_record.file_url
+            profile_image_url = crud_user.normalize_file_url(file_record.file_url)
 
     # 2. 결과 반환 (이미지가 없으면 profile_image_url은 None(null)으로 내려감)
     return {

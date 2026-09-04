@@ -46,7 +46,7 @@ class CommentResponse(CommentBase):
     class Config:
         # SQLAlchemy ORM 객체를 Pydantic 모델로 변환하기 위한 설정
         from_attributes = True 
-        orm_mode = True # Pydantic V1 하위 호환
+        from_attributes = True
 
 
 class CommentUpdate(BaseModel):
