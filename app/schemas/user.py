@@ -146,6 +146,7 @@ class JoinRequestUserResponse(BaseModel):
     name: str = Field(..., description="이름")
     admission_year: int = Field(..., description="입학년도")
     requested_at: datetime = Field(..., description="가입 신청 시간")
+    join_status: Literal["PENDING"] = Field(..., description="가입 상태")
 
 
 class JoinRequestActionResponse(BaseModel):

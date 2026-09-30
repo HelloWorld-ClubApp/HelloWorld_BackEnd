@@ -139,6 +139,7 @@ def get_pending_join_requests(db: Session, skip: int = 0, limit: int = 50):
             "name": user.name,
             "admission_year": user.admission_year,
             "requested_at": user.requested_at or user.created_at or datetime.datetime.now(datetime.timezone.utc),
+            "join_status": user.join_status,
         }
         for user in users
     ]
