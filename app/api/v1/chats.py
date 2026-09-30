@@ -17,14 +17,16 @@ from app.services import chat_service
 router = APIRouter()
 
 # [Chat_001] 내 채팅 목록 조회
-@router.get("/", response_model=List[ChatRoomResponse], summary="내 채팅방 목록 조회")
+@router.get("", response_model=List[ChatRoomResponse], summary="내 채팅방 목록 조회")
+@router.get("/", response_model=List[ChatRoomResponse], include_in_schema=False)
 def get_my_chat_rooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     return crud_chat.get_user_rooms(db, current_user.id)
 
-@router.post("/", status_code=status.HTTP_201_CREATED, summary="채팅방 생성")
+@router.post("", response_model=ChatRoomResponse, status_code=status.HTTP_201_CREATED, summary="채팅방 생성")
+@router.post("/", response_model=ChatRoomResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_room(
     data: ChatRoomCreate,
     db: Session = Depends(get_db),
@@ -124,7 +126,7 @@ async def websocket_endpoint(
 
 
 @router.delete("/{room_id}/messages/{message_id}", summary="메시지 삭제")
-def delete_message(
+async def delete_message(
     room_id: int,
     message_id: int,
     db: Session = Depends(get_db),
@@ -145,13 +147,13 @@ def delete_message(
         "message_id": message_id
     }
     # WebSocket 매니저를 통해 브로드캐스트
-    manager.broadcast(json.dumps(broadcast_data, ensure_ascii=False), room_id)
+    await manager.broadcast(json.dumps(broadcast_data, ensure_ascii=False), room_id)
     
     return {"message": "메시지가 삭제되었습니다."}
 
 
 @router.delete("/{room_id}/participants", summary="채팅방 나가기")
-def leave_room(
+async def leave_room(
     room_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -171,7 +173,7 @@ def leave_room(
         "message": f"{current_user.name}님이 나갔습니다."
     }
     # manager는 기존에 정의해둔 WebSocketManager 인스턴스
-    manager.broadcast(json.dumps(leave_msg, ensure_ascii=False), room_id)    
+    await manager.broadcast(json.dumps(leave_msg, ensure_ascii=False), room_id)
     return {"message": "채팅방에서 나갔습니다."}
 
 

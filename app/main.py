@@ -41,9 +41,9 @@ def init_seed_data():
                 
         if added_new_role:
             db.commit()
-            print("🌱 기초 데이터(권한: 일반회원, 회장, 부회장, 총무)가 성공적으로 동기화되었습니다.")
+            print("기초 데이터(권한: 일반회원, 회장, 부회장, 총무)가 성공적으로 동기화되었습니다.")
         else:
-            print("✅ 기초 데이터(권한)가 이미 완벽하게 세팅되어 있습니다.")
+            print("기초 데이터(권한)가 이미 설정되어 있습니다.")
             
     except Exception as e:
         print(f"기초 데이터 생성 중 오류 발생: {e}")
@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     # 서버 켜질 때
     Base.metadata.create_all(bind=engine)
     init_seed_data()
-    print("🚀 로컬 데이터베이스 테이블이 성공적으로 생성되었습니다.")
+    print("데이터베이스 테이블 초기화를 완료했습니다.")
     yield
     # 서버 꺼질 때 로직 추가 가능
 

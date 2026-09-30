@@ -2,7 +2,7 @@
 # 작성자 : 엄인섭
 from sqlalchemy.orm import Session
 from app.models.chat import ChatRoom, ChatParticipant, Message, MessageReadStatus
-from typing import List
+from typing import List, Optional
 from sqlalchemy import func
 
 
@@ -78,7 +78,13 @@ def is_participant(db: Session, room_id: int, user_id: int) -> bool:
         ChatParticipant.user_id == user_id
     ).first() is not None
 
-def add_message(db: Session, room_id: int, user_id: int, content: str, file_id: int = None):
+def add_message(
+    db: Session,
+    room_id: int,
+    user_id: int,
+    content: str,
+    file_id: Optional[int] = None,
+):
     # 1. 메시지 저장
     msg = Message(room_id=room_id, user_id=user_id, content=content, file_id=file_id)
     db.add(msg)
@@ -130,12 +136,12 @@ def get_messages(db: Session, room_id: int, limit: int = 50, offset: int = 0):
     return results
 
 def mark_messages_as_read(db: Session, room_id: int, user_id: int):
-    # 해당 방의 메시지 중 내 것이 아닌 것들을 읽음 처리
-    from app.models.chat import MessageReadStatus
+    room_message_ids = db.query(Message.id).filter(Message.room_id == room_id)
     db.query(MessageReadStatus).filter(
         MessageReadStatus.user_id == user_id,
-        MessageReadStatus.is_read == False
-    ).update({"is_read": True})
+        MessageReadStatus.is_read == False,
+        MessageReadStatus.message_id.in_(room_message_ids),
+    ).update({"is_read": True}, synchronize_session=False)
     db.commit()
 
 

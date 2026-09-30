@@ -26,7 +26,8 @@ def validate_image_file(file: UploadFile):
         raise HTTPException(status_code=400, detail="허용하지않는 이미지 규칙입니다")
     
     # 확장자 확인
-    if not any(file.filename.lower().endswith(ext) for ext in allowed_extensions):
+    filename = file.filename or ""
+    if not any(filename.lower().endswith(ext) for ext in allowed_extensions):
         raise HTTPException(status_code=400, detail="허용하지않는 이미지 규칙입니다")
 
 # 2. 자유게시판 작성 제한 검사

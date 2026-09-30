@@ -11,17 +11,17 @@ class LikeToggleResponse(BaseModel):
     message: str = Field(
         ..., 
         description="처리 결과 메시지 (상태에 따라 '좋아요가 추가되었습니다.' 또는 '좋아요가 취소되었습니다.' 반환)",
-        example="좋아요가 추가되었습니다."
+        examples=["좋아요가 추가되었습니다."]
     )
     liked: bool = Field(
         ..., 
         description="현재 로그인한 사용자의 최종 좋아요 상태 (True: 좋아요 눌림, False: 좋아요 취소됨)",
-        example=True
+        examples=[True]
     )
     total_likes: int = Field(
         ..., 
         description="해당 게시글의 실시간 총 좋아요 누적 개수",
-        example=42
+        examples=[42]
     )
 
 # ---------------------------------------------------------
@@ -32,17 +32,17 @@ class LikeResponse(BaseModel):
     id: int = Field(
         ..., 
         description="좋아요 고유번호 (PK)", 
-        example=1
+        examples=[1]
     )
     post_id: int = Field(
         ..., 
         description="좋아요가 눌린 게시글의 고유번호 (FK)", 
-        example=15
+        examples=[15]
     )
     user_id: int = Field(
         ..., 
         description="좋아요를 누른 사용자의 고유번호 (FK)", 
-        example=5
+        examples=[5]
     )
     created_at: datetime = Field(
         ..., 
